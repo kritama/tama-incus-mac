@@ -1,0 +1,13 @@
+[Unit]
+Description=Mount and safely grow persistent Incus storage
+Before=incus.service incus.socket tama-bridge.service
+After=systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/tama-storage.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

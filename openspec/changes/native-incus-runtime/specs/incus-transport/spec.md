@@ -1,0 +1,61 @@
+# Spec Delta
+
+## Purpose
+
+Gives tama-machine a small outer-runtime control contract and transparent access to the canonical Incus API.
+
+## ADDED Requirements
+
+### Requirement: Local endpoints
+
+The service SHALL expose owner-only Unix sockets at <state-dir>/runtime.sock and <state-dir>/incus.sock, defaulting to ~/.tama/incus-mac. Neither endpoint SHALL listen on TCP.
+
+#### Scenario: Endpoint discovery
+
+- **WHEN** tama-machine reads runtime status
+- **THEN** it receives the Incus socket path and readiness state
+
+### Requirement: Transparent proxy
+
+Incus transport SHALL relay bytes bidirectionally over vsock to the guest Incus Unix socket without rewriting URLs, JSON, headers or WebSocket frames. Streaming and half-close SHALL be supported.
+
+#### Scenario: Streaming exec
+
+- **WHEN** Incus upgrades an exec or event connection to WebSocket
+- **THEN** frames and connection lifetime are preserved across the bridge
+
+### Requirement: Control API
+
+The service SHALL implement GET status, capabilities, health and config; POST create, start, stop and restart; PUT config; and DELETE runtime beneath /v1/runtime. Responses SHALL use versioned Codable JSON and stable error codes.
+
+#### Scenario: Unknown route
+
+- **WHEN** a client requests an unsupported control path
+- **THEN** HTTP 404 is returned with a machine-readable error
+
+### Requirement: Bounded requests
+
+Control HTTP SHALL bound header/body size, reject transfer encodings and ambiguous lengths, close after one response, and enforce idle timeouts. Proxy traffic MUST NOT be parsed as control HTTP.
+
+#### Scenario: Ambiguous framing
+
+- **WHEN** a request contains duplicate content-length headers
+- **THEN** HTTP 400 is returned without executing the mutation
+
+### Requirement: Host-only helper
+
+Guest helper SHALL accept only host vsock CID 2 and expose the Incus Unix socket and a read-only health endpoint on distinct fixed ports. No helper endpoint SHALL accept guest shell commands.
+
+#### Scenario: Guest peer denied
+
+- **WHEN** a nested guest connects to the helper
+- **THEN** the connection is rejected before any Incus bytes are relayed
+
+### Requirement: Incus remains canonical
+
+All instances, images, snapshots, profiles, projects, networks, storage, remotes and transfer/migration SHALL remain standard Incus operations. The runtime API MUST NOT introduce workload equivalents.
+
+#### Scenario: Portable transfer
+
+- **WHEN** tama-machine transfers an instance to another Incus host
+- **THEN** it uses standard Incus APIs and artifacts without runtime-specific workload metadata
