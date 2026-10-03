@@ -1,17 +1,27 @@
 #!/bin/sh
 set -eu
+umask 077
+exec > /var/log/tama-storage.log 2>&1
+# These are runtime prerequisites on every boot, not just cloud-init's first.
+modprobe vmw_vsock_virtio_transport
+modprobe virtiofs
+modprobe vhost_vsock
+modprobe tun
 disk=/dev/vdb
 new_data=false
 kind=$(blkid -s TYPE -o value "$disk" || true)
 if [ "$kind" = ext4 ]; then
     :
 elif [ -z "$kind" ]; then
-    size=$(blockdev --getsize64 "$disk")
     # Check the whole device, not just its first sector. Unknown data must survive.
-    if ! cmp -s -n "$size" "$disk" /dev/zero; then
-        echo 'Refusing to format nonblank Incus data disk' >&2
-        exit 1
-    fi
+    python3 - "$disk" <<'PY'
+import sys
+zero = bytes(1024 * 1024)
+with open(sys.argv[1], 'rb', buffering=0) as disk:
+    while chunk := disk.read(len(zero)):
+        if chunk != zero[:len(chunk)]:
+            raise SystemExit('Refusing to format nonblank Incus data disk')
+PY
     mkfs.ext4 -q -L tama-incus-data "$disk"
     new_data=true
 else
@@ -19,7 +29,8 @@ else
     exit 1
 fi
 if ! mountpoint -q /var/lib/incus; then
-    e2fsck -p "$disk" || [ "$?" -eq 1 ]
+    # Offline resize requires a real check even when ext4's clean bit is set.
+    e2fsck -fp "$disk" || [ "$?" -eq 1 ]
     resize2fs "$disk"
     mkdir -p /var/lib/incus
     mount -o defaults "$disk" /var/lib/incus

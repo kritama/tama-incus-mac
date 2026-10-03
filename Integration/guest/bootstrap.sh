@@ -1,88 +1,101 @@
-#!/bin/bash
-set -euo pipefail
-export DEBIAN_FRONTEND=noninteractive
-cat > /etc/apt/apt.conf.d/90-tama-appliance <<'EOF'
-Acquire::Languages "none";
-Acquire::ForceIPv4 "true";
-Acquire::Retries "2";
-Acquire::http::Timeout "20";
-Acquire::https::Timeout "20";
-EOF
-# No source package indexes or translation catalogs are needed by an appliance.
-sed -i 's/^Types: deb deb-src$/Types: deb/' /etc/apt/sources.list.d/debian.sources
-# Private serial diagnostics help distinguish a slow mirror from a guest failure.
-(
-  while [ ! -e /run/tama-bootstrap-ready ]; do
-    printf '\nTAMA_PROVISIONING uptime='
-    cat /proc/uptime
-    ps -eo pid,stat,wchan:24,args | grep -E 'apt|dpkg|cloud-init|tama-bootstrap' || true
-    sleep 20
-  done
-) >/dev/hvc0 2>&1 &
-# Prevent apt from starting Incus before its data disk is mounted.
-cat > /usr/sbin/policy-rc.d <<'EOF'
 #!/bin/sh
-exit 101
+set -eu
+umask 077
+echo 'TAMA_ALPINE_PROVISIONING'
+ip address
+ip route
+cat /etc/resolv.conf
+rc-service networking status || rc-service networking start
+cat /etc/network/interfaces
+cat /etc/dhcpcd.conf
+# Persist IPv4 DHCP selection across reboots; initial cloud-init otherwise
+# considers IPv6 RA sufficient for the NAT interface.
+if ! grep -q '^# tama-incus IPv4 DHCP$' /etc/dhcpcd.conf; then
+    cat >> /etc/dhcpcd.conf <<'EOF'
+# tama-incus IPv4 DHCP
+interface eth0
+ipv4only
 EOF
-chmod 0755 /usr/sbin/policy-rc.d
-trap 'rm -f /usr/sbin/policy-rc.d' EXIT
-apt-get update
-apt-get install -y --no-install-recommends ca-certificates curl e2fsprogs
-mkdir -p /etc/apt/keyrings
-curl --fail --silent --show-error --location https://pkgs.zabbly.com/key.asc -o /etc/apt/keyrings/zabbly.asc
-chmod 0644 /etc/apt/keyrings/zabbly.asc
-cat > /etc/apt/sources.list.d/zabbly-incus.sources <<'EOF'
-Enabled: yes
-Types: deb
-URIs: https://pkgs.zabbly.com/incus/stable
-Suites: trixie
-Components: main
-Architectures: arm64
-Signed-By: /etc/apt/keyrings/zabbly.asc
+fi
+# IPv6 router advertisements can make OpenRC networking appear ready before
+# Apple NAT's IPv4 DHCP lease. Wait for an IPv4 route before fetching packages.
+dhcpcd -4 -w -t 45 eth0
+network_ready=false
+for i in $(seq 1 45); do
+    if ip -4 route show default | grep -q '^default '; then network_ready=true; break; fi
+    sleep 1
+done
+[ "$network_ready" = true ] || { echo 'IPv4 DHCP did not become ready' >&2; exit 1; }
+ip -4 address
+ip -4 route
+. /etc/os-release
+[ "$ID" = alpine ] && [ "${VERSION_ID%.*}" = 3.24 ] || {
+    echo 'Expected Alpine Linux 3.24; refusing mixed distribution provisioning' >&2
+    exit 1
+}
+# The minimal cloud base may lack the TLS CA bundle. Bootstrap it using APK's
+# trusted Alpine signatures, then use HTTPS for all remaining package operations.
+cat > /run/tama-ca-repositories <<'EOF'
+http://dl-cdn.alpinelinux.org/alpine/v3.24/main
 EOF
-apt-get update
-apt-get install -y --no-install-recommends incus
-# Linux host requirements: large subordinate ID ranges for unprivileged workloads.
+apk --timeout 30 --repositories-file /run/tama-ca-repositories update
+apk --timeout 30 --repositories-file /run/tama-ca-repositories add ca-certificates
+rm -f /run/tama-ca-repositories
+update-ca-certificates
+cat > /etc/apk/repositories <<'EOF'
+https://dl-cdn.alpinelinux.org/alpine/v3.24/main
+https://dl-cdn.alpinelinux.org/alpine/v3.24/community
+EOF
+# APK's normal signature verification stays enabled. No edge or third-party repo.
+apk --timeout 30 update
+apk --timeout 30 add --no-cache \
+    'incus>=7.0.1' 'incus-client>=7.0.1' incus-openrc 'incus-vm>=7.0.1' skopeo \
+    qemu-system-aarch64 qemu-audio-spice qemu-hw-display-virtio-gpu-pci qemu-hw-usb-host \
+    qemu-chardev-spice qemu-hw-usb-redirect qemu-ui-spice-core aavmf virtiofsd \
+    ca-certificates e2fsprogs e2fsprogs-extra util-linux-misc blkid python3 shadow-subids \
+    lxcfs lxcfs-openrc nftables acpid acpid-openrc
+apk info -v > /var/log/tama-appliance-packages.txt
+cat /var/log/tama-appliance-packages.txt
 grep -q '^root:' /etc/subuid || echo 'root:1000000:1000000000' >> /etc/subuid
 grep -q '^root:' /etc/subgid || echo 'root:1000000:1000000000' >> /etc/subgid
 cat > /etc/sysctl.d/90-tama-incus.conf <<'EOF'
 net.ipv4.ip_forward=1
 net.ipv6.conf.all.forwarding=1
 EOF
-sysctl --system
-mkdir -p /etc/systemd/system/incus.service.d /etc/systemd/system/incus.socket.d
-for unit in incus.service incus.socket; do
-    cat > "/etc/systemd/system/$unit.d/tama-storage.conf" <<'EOF'
-[Unit]
-Requires=tama-storage.service
-After=tama-storage.service
+sysctl -p /etc/sysctl.d/90-tama-incus.conf
+sed -i '/^rc_cgroup_mode=/d' /etc/rc.conf
+echo 'rc_cgroup_mode="unified"' >> /etc/rc.conf
+rc-update add cgroups boot
+rc-service cgroups start
+test -e /sys/fs/cgroup/cgroup.controllers
+# Device autoloading normally handles these; ensure the host transport is present.
+modprobe vmw_vsock_virtio_transport
+modprobe virtiofs
+modprobe vhost_vsock
+modprobe tun
+cat > /etc/conf.d/incusd <<'EOF'
+INCUSD_OPTIONS="--group incus"
+INCUSD_STOP_TIMEOUT=45
+rc_need="tama-storage"
 EOF
-done
-systemctl daemon-reload
-systemctl enable tama-storage.service tama-bridge.service
-systemctl start tama-storage.service
-rm -f /usr/sbin/policy-rc.d
-systemctl enable --now incus.socket
-systemctl start incus.service
-ready=false
-for i in $(seq 1 120); do
-    if incus info >/dev/null 2>&1; then ready=true; break; fi
-    sleep 1
-done
-if [ "$ready" != true ]; then
-    echo 'Incus failed to become ready; preserving data without running preseed' >&2
-    exit 1
-fi
-# A reused disk may have any pool name or partially applied initialization.
-# Keep persistent pending intent until success, but never replay a preseed that
-# may already have changed Incus configuration. Explicit recovery/reset is safer.
+rc-update add tama-storage default
+rc-update add incusd default
+rc-update add tama-bridge default
+rc-update add dbus default
+rc-update add acpid default
+rc-service acpid start
+rc-service tama-storage start || { cat /var/log/tama-storage.log; exit 1; }
+rc-service dbus start
+rc-service incusd start
+# /1.0 can respond before startup cleanup/autostart completes.
+incusd waitready --timeout 120
 pending=/var/lib/incus/.tama-preseed-pending
 started=/var/lib/incus/.tama-preseed-started
 if [ -e "$pending" ]; then
-    if [ -e "$started" ]; then
-        echo 'Incus initialization was interrupted; preserving state for explicit recovery or reset' >&2
+    [ ! -e "$started" ] || {
+        echo 'Interrupted initialization; preserve data for explicit recovery/reset' >&2
         exit 1
-    fi
+    }
     touch "$started"
     sync
     incus admin init --preseed <<'EOF'
@@ -112,8 +125,11 @@ EOF
     rm -f "$pending" "$started"
     sync
 fi
-systemctl start tama-bridge.service
-# Drop SSH; no normal operation should require access to the guest shell.
-systemctl disable --now ssh.service ssh.socket 2>/dev/null || true
+# SSH is not part of the appliance's normal control surface.
+if [ -x /etc/init.d/sshd ]; then
+    rc-service sshd stop || true
+    rc-update del sshd default || true
+fi
+rc-service tama-bridge start
 touch /run/tama-bootstrap-ready
-printf 'TAMA_BOOTSTRAP_READY\n' >/dev/hvc0
+printf 'TAMA_BOOTSTRAP_READY\n'

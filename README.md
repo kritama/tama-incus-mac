@@ -4,7 +4,7 @@ A headless macOS compatibility layer that boots a Linux Incus host using Apple's
 
 Requires Apple Silicon, macOS 15+ and Swift 6.4. One SwiftPM library and one small executable; no third-party Swift dependencies or host VM runtime.
 
-**Development status:** The native host service builds and passes unit tests. The specified appliance OS is Alpine Linux with OpenRC and signed APK packages; guest scripts currently remain a Debian prototype pending migration. Incus readiness and workload hardware acceptance have not passed. This initial implementation is suitable for development review; it is not a completed usable Incus host.
+**Development status:** The native host service builds and passes unit tests. The appliance uses Alpine Linux with OpenRC and signed APK packages. Hardware acceptance results and distribution limitations are recorded in [the acceptance record](docs/acceptance.md).
 
 ```sh
 swift build -Xswiftc -warnings-as-errors
@@ -27,4 +27,4 @@ The service exposes `~/.tama/incus-mac/runtime.sock` for outer VM lifecycle and 
 - [Implementation and acceptance checklist](openspec/changes/native-incus-runtime/tasks.md)
 - [Git Flow development workflow](docs/development.md#git-flow)
 
-Unit tests and hardware acceptance are separate. See [the acceptance record](docs/acceptance.md) for results and remaining limitations. Automatic appliance downloads/upgrades, production signed/notarized releases, service forwarding and custom DNS are future work. The existing prototype preparation script uses a verified local Debian raw image and internet package installation; Alpine preparation is tracked in OpenSpec.
+Unit tests and hardware acceptance are separate. Automatic appliance downloads/upgrades, production signed/notarized releases, service forwarding and custom DNS are future work. Appliance preparation verifies the official Alpine raw archive and creates a NoCloud seed; initial provisioning requires internet access.

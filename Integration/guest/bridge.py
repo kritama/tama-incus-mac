@@ -21,6 +21,11 @@ def incus_health():
     connection.sock.settimeout(2)
     connection.sock.connect(INCUS_SOCKET)
     try:
+        connection.request('GET', '/internal/ready')
+        ready = connection.getresponse()
+        ready.read(1048576)
+        if ready.status != 200:
+            raise RuntimeError('Incus startup tasks have not completed')
         connection.request('GET', '/1.0')
         response = connection.getresponse()
         if response.status != 200:

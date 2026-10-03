@@ -55,4 +55,12 @@ curl --unix-socket "$STATE/runtime.sock" -X POST http://localhost/v1/runtime/sta
 curl --unix-socket "$STATE/incus.sock" http://localhost/1.0
 ```
 
-The standard Incus CLI can connect using `INCUS_SOCKET="$STATE/incus.sock"`; isolate `INCUS_CONF` for test clients. The runtime performs no instance/image/profile/project/network/storage/remote/transfer translations. Standard Incus artifacts remain portable to remote Incus hosts.
+Configure a standard Unix remote for the macOS Incus CLI, which has no implicit local server. Use a dedicated `INCUS_CONF` directory for test clients:
+
+```sh
+incus remote add tama-mac "unix:$STATE/incus.sock"
+incus remote switch tama-mac
+incus list
+```
+
+The runtime performs no instance/image/profile/project/network/storage/remote/transfer translations. Standard Incus artifacts remain portable to remote Incus hosts.
