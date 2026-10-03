@@ -6,7 +6,7 @@ Host validation: 2026-10-03 UTC (2026-10-04 Asia/Bangkok). Apple M4 Max, 64 GiB,
 
 Debug/release builds with warnings-as-errors, 19 Swift Testing tests, strict Swift formatting, guest shell/Python syntax and strict OpenSpec validation passed locally. Tests cover lifecycle concurrency/cancellation, failure retention, configuration/path/manifest safety, HTTP framing and binary duplex/half-close behavior.
 
-GitHub Actions runs these checks on the macOS ARM64 `xcode-27` runner with pinned checkout/setup-node actions and OpenSpec 1.14.0. [The initial workflow run passed](https://github.com/kritama/tama-incus-mac/actions/runs/37141303202). CI does not boot VZ or establish hardware acceptance; final PR-head checks are recorded on GitHub.
+GitHub Actions runs these checks on the macOS ARM64 `xcode-27` runner with pinned checkout/setup-node actions and OpenSpec 1.14.0. [The Alpine implementation workflow run passed](https://github.com/kritama/tama-incus-mac/actions/runs/37146208220). CI does not boot VZ or establish hardware acceptance; final PR-head checks are recorded on GitHub.
 
 ## Alpine appliance
 
@@ -20,14 +20,14 @@ Hardware testing corrected several Alpine-specific provisioning gaps: wait for I
 
 Isolated Alpine appliances have passed real standard Incus system-container and OCI boot/exec, outbound networking, outer restart persistence and stopped-state data growth from 8 to 9 GiB. The guest directory-pool capacity grew from 8,350,298,112 to 9,407,197,184 bytes while the container's marker remained intact.
 
-The fresh Alpine appliance also passed read-only write rejection, writable share propagation and nested Debian 13 ARM64 guest-agent `uname -m`. [The hardware report](testing/alpine-hardware-acceptance.json) records all successful checks and the remaining aggregate failure; a failed aggregate is not claimed as complete acceptance.
+The final freshly provisioned appliance (`alpine-3.24.2-incus-a14`) passed the entire acceptance runner, including read-only write rejection, writable share propagation, cached OCI reuse after both restarts and growth, and nested Debian 13 ARM64 guest-agent `uname -m`. [The hardware report](testing/alpine-hardware-acceptance.json) records command results, capabilities, selected server environment and all 17 successful checks. Successful test workloads/remotes were removed by the runner.
 
-Earlier runs exposed missing OCI cached files after restart while the image metadata remained present. Both `alpine:latest` and `alpine:3.23` reproduced it on fresh fixtures; a later diagnostic image survived reuse. The cause is still under investigation, and cached-image acceptance remains pending until reproduced successfully on the final fixture. Failed fixtures and their Incus data are retained in ignored `.integration/`.
+Earlier runs exposed missing OCI cached files after restart while the image metadata remained present. Both `alpine:latest` and `alpine:3.23` reproduced it on fresh fixtures; a later diagnostic image survived reuse. The selected Incus 7.0.1 source contains a background-download cancellation path that can remove cache files; this is a suspected cause of the observed loss. New appliances set `images.auto_update_interval=0` and keep image updates explicit. Cached reuse passed in the complete final fixture under that default. Automatic background image updates remain unverified. A transient native EFI configuration failure also motivated releasing stopped VZ attachments before reopening them; the final immediate restart and growth/start cycle both passed. Failed fixtures and their Incus data are retained in ignored `.integration/`.
 
 ## Review and scope
 
-CodeRabbit reviewed the Alpine provisioning, preparation, acceptance and CI changes. Its minor DHCP configuration idempotency finding was corrected; two subsequent reviews completed with zero findings. Later readiness refinements require a final review.
+CodeRabbit completed five reviews during this Alpine acceptance work. Its minor DHCP configuration idempotency finding was corrected; four subsequent reviews completed with zero findings. The last review covered the final VZ cleanup and explicit-image-update changes. Earlier native implementation findings were also addressed. Checks affected by the final Swift change were rerun successfully.
 
-The active OpenSpec checklist records actual completion. Production signed/notarized distribution, a published appliance, Homebrew formula, automatic image/root upgrades, forwarding and custom DNS remain outside this initial implementation. No image, runtime disk, downloaded executable or client credential is committed.
+All 17 tasks in the active OpenSpec checklist are complete. This records the supported initial implementation and acceptance fixture. Production signed/notarized distribution, a published appliance, Homebrew formula, automatic image/root upgrades, forwarding and custom DNS remain outside this initial implementation. No image, runtime disk, downloaded executable or client credential is committed.
 
 The standard native Incus CLI used for acceptance is 7.5.1 from the verified official Homebrew ARM64 bottle, SHA-256 `864f707022778302ef3be6f11746f7aea15e659613c768ed63ab56f349eff2da`.

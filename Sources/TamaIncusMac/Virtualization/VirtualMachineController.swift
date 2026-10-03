@@ -17,6 +17,9 @@ public final class VirtualMachineController: NSObject, VirtualMachineDriver,
     guard machine == nil || machine?.state == .stopped || machine?.state == .error else {
       throw RuntimeError(.conflict, "VM already active")
     }
+    // Release stopped VZ attachments before reopening EFI and disk files.
+    closeConnections()
+    machine = nil
     let vm = VZVirtualMachine(
       configuration: try VirtualMachineConfiguration.make(configuration, paths: paths))
     vm.delegate = self
@@ -43,6 +46,7 @@ public final class VirtualMachineController: NSObject, VirtualMachineDriver,
     connections.removeAll()
     guard let machine, machine.canStop else { return }
     try await machine.stop()
+    self.machine = nil
     endActivity()
   }
   public func isRunning() async -> Bool {
@@ -122,11 +126,15 @@ public final class VirtualMachineController: NSObject, VirtualMachineDriver,
     }
   }
   public func guestDidStop(_ virtualMachine: VZVirtualMachine) {
+    guard machine === virtualMachine else { return }
     closeConnections()
+    machine = nil
     logger.info("Guest stopped")
   }
   public func virtualMachine(_ virtualMachine: VZVirtualMachine, didStopWithError error: Error) {
+    guard machine === virtualMachine else { return }
     closeConnections()
+    machine = nil
     logger.error("Guest failed: \(error.localizedDescription, privacy: .public)")
   }
   private func endActivity() {

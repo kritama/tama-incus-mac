@@ -99,7 +99,10 @@ if [ -e "$pending" ]; then
     touch "$started"
     sync
     incus admin init --preseed <<'EOF'
-config: {}
+config:
+  # Incus 7.0.1 can unlink cached OCI files if a background image download is
+  # cancelled during shutdown. Keep updates explicit until that is resolved.
+  images.auto_update_interval: "0"
 networks:
 - name: incusbr0
   type: bridge
