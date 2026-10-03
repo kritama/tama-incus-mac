@@ -33,7 +33,7 @@ actor FakeVM: VirtualMachineDriver {
   }
   func health() async throws -> GuestHealth {
     guard healthy, running else { throw RuntimeError(.unavailable, "Guest not healthy") }
-    return GuestHealth(incusVersion: "test", apiExtensions: ["container_oci"], kvm: kvm)
+    return GuestHealth(incusVersion: "test", apiExtensions: ["instance_oci"], kvm: kvm)
   }
   func setHealthy(_ value: Bool) { healthy = value }
   func setRunning(_ value: Bool) { running = value }
@@ -212,4 +212,67 @@ struct Fixture {
     await routes.handle(HTTPRequest(method: "DELETE", path: "/v1/runtime", body: Data("{}".utf8)))
       .status == 400)
   #expect(FileManager.default.fileExists(atPath: fixture.paths.dataDisk.path))
+}
+
+@Test func explicitForceStopCancelsBootWait() async throws {
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  let driver = FakeVM()
+  await driver.setHealthy(false)
+  let service = try RuntimeService(driver: driver, store: StateStore(paths: fixture.paths))
+  let start = Task { try await service.start() }
+  for _ in 0..<100 {
+    if await driver.running { break }
+    try await Task.sleep(for: .milliseconds(5))
+  }
+  #expect(try await service.stop(force: true).state == .stopped)
+  #expect(!(await driver.running))
+  _ = await start.result
+  #expect(await service.status().state == .stopped)
+}
+
+@Test func readinessTimeoutKeepsDiskAndRevokesCapabilities() async throws {
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  let driver = FakeVM()
+  await driver.setHealthy(false)
+  let service = try RuntimeService(driver: driver, store: StateStore(paths: fixture.paths))
+  await #expect(throws: RuntimeError.self) { try await service.start() }
+  #expect(await service.status().state == .failed)
+  #expect(await driver.running)
+  #expect(!(await service.capabilities().incus.available))
+  #expect(FileManager.default.fileExists(atPath: fixture.paths.dataDisk.path))
+  _ = try await service.stop(force: true)
+}
+
+@Test func omittedShareModeDefaultsToReadOnly() throws {
+  let share = try JSON.decoder().decode(
+    DirectoryShare.self, from: Data(#"{"name":"project","path":"/tmp"}"#.utf8))
+  #expect(share.readOnly)
+}
+
+@Test func createVerifiedRuntimeAndRepeatWithoutReplacingData() async throws {
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  let store = StateStore(paths: fixture.paths)
+  try store.delete()
+  let image = fixture.paths.directory.appendingPathComponent("image.raw")
+  let content = Data("appliance".utf8)
+  try content.write(to: image)
+  let digest = SHA256.hash(data: content).map { String(format: "%02x", $0) }.joined()
+  let manifest = ApplianceManifest(
+    schemaVersion: 1, id: "test", architecture: "arm64", rootDisk: "image.raw", sha256: digest,
+    vsockProtocol: 1)
+  try JSON.encoder().encode(manifest).write(
+    to: URL(fileURLWithPath: fixture.configuration.applianceManifestPath))
+  let service = try RuntimeService(driver: FakeVM(), store: store)
+  #expect(try await service.create(fixture.configuration).state == .stopped)
+  let disk = try FileHandle(forWritingTo: fixture.paths.dataDisk)
+  try disk.write(contentsOf: Data("kept".utf8))
+  try disk.close()
+  #expect(try await service.create(fixture.configuration).state == .stopped)
+  let reader = try FileHandle(forReadingFrom: fixture.paths.dataDisk)
+  defer { try? reader.close() }
+  #expect(try reader.read(upToCount: 4) == Data("kept".utf8))
+  #expect(try store.load() == fixture.configuration)
 }

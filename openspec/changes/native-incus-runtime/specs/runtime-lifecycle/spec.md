@@ -17,7 +17,7 @@ The service SHALL expose absent, stopped, starting, ready, stopping and failed s
 
 ### Requirement: Serialized mutations
 
-The service SHALL reject competing lifecycle/configuration mutations with HTTP 409 while an operation is active. Repeated create/start/stop requests SHALL be idempotent when already satisfied.
+The service SHALL reject competing lifecycle/configuration mutations with HTTP 409 while an operation is active, except an explicit force stop SHALL cancel an active boot wait. Repeated create/start/stop requests SHALL be idempotent when already satisfied.
 
 #### Scenario: Competing start
 
@@ -32,6 +32,11 @@ Stop SHALL request guest shutdown and wait with a bounded deadline. A timeout MU
 
 - **WHEN** the guest does not stop before its deadline
 - **THEN** the request fails with timeout and the caller can explicitly force stop
+
+#### Scenario: Emergency stop during boot
+
+- **WHEN** the VM is starting and an explicit force stop is requested
+- **THEN** the boot wait is cancelled, the outer VM is stopped, and the mutation gate remains owned until stop completes
 
 ### Requirement: Recovery
 

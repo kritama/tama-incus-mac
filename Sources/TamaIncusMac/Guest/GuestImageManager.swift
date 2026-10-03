@@ -13,6 +13,10 @@ public struct ApplianceManifest: Codable, Sendable {
 
 public enum GuestImageManager {
   public static func verify(manifestURL: URL) throws -> URL {
+    try verifiedImage(manifestURL: manifestURL).0
+  }
+
+  private static func verifiedImage(manifestURL: URL) throws -> (URL, ApplianceManifest) {
     try requireRegularFile(manifestURL)
     let manifest = try JSON.decoder().decode(
       ApplianceManifest.self, from: Data(contentsOf: manifestURL))
@@ -26,22 +30,26 @@ public enum GuestImageManager {
     else { throw RuntimeError(.invalidConfiguration, "Unsupported or unsafe appliance manifest") }
     let image = manifestURL.deletingLastPathComponent().appendingPathComponent(manifest.rootDisk)
     try requireRegularFile(image)
+    guard try digest(image) == manifest.sha256 else {
+      throw RuntimeError(.invalidConfiguration, "Appliance SHA-256 mismatch")
+    }
+    return (image, manifest)
+  }
+
+  static func digest(_ image: URL) throws -> String {
     let file = try FileHandle(forReadingFrom: image)
     defer { try? file.close() }
     var hasher = SHA256()
     while let chunk = try file.read(upToCount: 1024 * 1024), !chunk.isEmpty {
       hasher.update(data: chunk)
     }
-    let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
-    guard digest == manifest.sha256 else {
-      throw RuntimeError(.invalidConfiguration, "Appliance SHA-256 mismatch")
-    }
-    return image
+    return hasher.finalize().map { String(format: "%02x", $0) }.joined()
   }
 
   public static func create(configuration: RuntimeConfiguration, store: StateStore) throws {
     try configuration.validate()
-    let image = try verify(manifestURL: URL(fileURLWithPath: configuration.applianceManifestPath))
+    let (image, manifest) = try verifiedImage(
+      manifestURL: URL(fileURLWithPath: configuration.applianceManifestPath))
     guard !FileManager.default.fileExists(atPath: store.paths.runtimeDirectory.path) else {
       throw RuntimeError(
         .conflict, "Runtime files already exist; preserve them or explicitly reset")
@@ -52,6 +60,9 @@ public enum GuestImageManager {
     defer { try? FileManager.default.removeItem(at: staging) }
     let root = staging.appendingPathComponent("root.raw")
     try FileManager.default.copyItem(at: image, to: root)
+    guard try digest(root) == manifest.sha256 else {
+      throw RuntimeError(.invalidConfiguration, "Staged appliance SHA-256 mismatch")
+    }
     guard chmod(root.path, 0o600) == 0 else { throw RuntimeError(.io, "Cannot secure root disk") }
     let attributes = try FileManager.default.attributesOfItem(atPath: root.path)
     let size = (attributes[.size] as? NSNumber)?.uint64Value ?? 0

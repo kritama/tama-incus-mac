@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Provides a minimal ARM64 Linux appliance with durable Incus storage and a repeatable boot contract.
+Provides a minimal Alpine Linux ARM64 appliance with durable Incus storage and a repeatable boot contract.
 
 ## ADDED Requirements
 
@@ -35,12 +35,22 @@ Incus state SHALL reside on a separate data disk mounted before Incus starts. Ex
 
 ### Requirement: Appliance provisioning
 
-Provisioning SHALL be idempotent and use a maintained Debian ARM64 base with authenticated package repositories, service management, Incus, its LXC/VM dependencies and the helper. It MUST omit development/desktop/orchestration software.
+Provisioning SHALL be idempotent and use a pinned, maintained Alpine Linux ARM64 base, OpenRC service management and signature-verified APK packages from main/community repositories on the same stable release branch. It SHALL install Incus with its LXC, OCI and ARM64 VM dependencies and the helper. It MUST NOT mix edge repositories, bypass package signature verification or include development/desktop/orchestration software.
 
 #### Scenario: Repeated provisioning
 
 - **WHEN** a previously initialized data disk is booted again
 - **THEN** storage and profiles remain intact and initialization does not reset workloads
+
+#### Scenario: Alpine service ordering
+
+- **WHEN** OpenRC starts services on first boot or a subsequent boot
+- **THEN** cgroup/kernel prerequisites and persistent storage are ready before Incus starts, and helper health reports readiness only after the Incus API responds
+
+#### Scenario: Alpine kernel support
+
+- **WHEN** the selected Alpine image is validated on a supported Mac
+- **THEN** EFI, virtio storage/networking, vsock, configured VirtioFS, and container kernel prerequisites work, and nested VM capability additionally requires usable guest KVM and ARM64 VM dependencies
 
 ### Requirement: Disk growth
 

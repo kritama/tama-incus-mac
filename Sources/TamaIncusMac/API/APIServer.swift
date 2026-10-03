@@ -9,13 +9,13 @@ public final class APIServer {
     control = try UnixListener(path: paths.controlSocket) { socket in
       socket.timeout(seconds: 15)
       let request: HTTPRequest
-      do { request = try await Task.detached { try HTTPRequest.read(from: socket) }.value } catch {
+      do { request = try await SocketIO.run { try HTTPRequest.read(from: socket) } } catch {
         let response = HTTPResponse.error(error)
-        _ = await Task.detached { try? response.write(to: socket) }.value
+        _ = try? await SocketIO.run { try response.write(to: socket) }
         return
       }
       let response = await routes.handle(request)
-      _ = await Task.detached { try? response.write(to: socket) }.value
+      _ = try? await SocketIO.run { try response.write(to: socket) }
     }
     do {
       incus = try UnixListener(path: paths.incusSocket) { socket in

@@ -19,7 +19,10 @@ output.mkdir(parents=True, exist_ok=True, mode=0o700)
 # Manifest points to an image in its own directory: hard-link input or use input directory.
 image = output / 'root.raw'
 if not image.exists():
-    image.hardlink_to(root)
+    try:
+        image.hardlink_to(root)
+    except OSError as error:
+        parser.error(f'Cannot hard-link raw image into output directory: {error}. Put output on the same volume as the source.')
 elif image.stat().st_ino != root.stat().st_ino:
     parser.error('output root.raw already refers to a different input')
 with image.open('rb') as stream:

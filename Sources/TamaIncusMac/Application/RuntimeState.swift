@@ -71,7 +71,7 @@ public struct RuntimeCapabilities: Codable, Sendable {
     incus = Incus(available: health != nil, version: health?.incusVersion)
     capabilities = Features(
       systemContainers: health != nil,
-      oci: health?.apiExtensions.contains("container_oci") == true,
+      oci: health?.apiExtensions.contains("instance_oci") == true,
       vm: health != nil && health?.kvm == true && host.nestedVirtualization && nestingEnabled,
       nestedVirtualization: host.nestedVirtualization, virtiofs: host.virtiofs)
   }

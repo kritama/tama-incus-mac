@@ -17,7 +17,7 @@ The daemon serves two owner-only Unix sockets in its state directory, default `~
 | PUT | `/v1/runtime/config` | Complete replacement; only when stopped |
 | DELETE | `/v1/runtime` | `{"confirm":true}`; only when stopped; destroys Incus state |
 
-States: `absent`, `stopped`, `starting`, `ready`, `stopping`, `failed`. Start/create/stop are idempotent when their postcondition is already satisfied. Lifecycle/configuration mutations return 409 during another mutation; status remains readable. Initial boot allows 600 seconds by default; clients must use a matching response timeout. Stop never silently forces shutdown on timeout. Deletion leaves the externally supplied source image/seed and logs intact.
+States: `absent`, `stopped`, `starting`, `ready`, `stopping`, `failed`. Start/create/stop are idempotent when their postcondition is already satisfied. Lifecycle/configuration mutations return 409 during another mutation, except explicit force stop cancels an active boot wait; status remains readable. Initial boot allows 600 seconds by default; clients must use a matching response timeout. Stop never silently forces shutdown on timeout. Deletion leaves the externally supplied source image/seed and logs intact.
 
 JSON uses snake_case. Configuration schema 1 requires every field shown below; API clients can use the generated `config.json`:
 

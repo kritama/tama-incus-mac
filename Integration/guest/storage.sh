@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 disk=/dev/vdb
+new_data=false
 kind=$(blkid -s TYPE -o value "$disk" || true)
 if [ "$kind" = ext4 ]; then
     :
@@ -12,6 +13,7 @@ elif [ -z "$kind" ]; then
         exit 1
     fi
     mkfs.ext4 -q -L tama-incus-data "$disk"
+    new_data=true
 else
     echo "Refusing unknown data filesystem: $kind" >&2
     exit 1
@@ -21,6 +23,11 @@ if ! mountpoint -q /var/lib/incus; then
     resize2fs "$disk"
     mkdir -p /var/lib/incus
     mount -o defaults "$disk" /var/lib/incus
+fi
+# Persist the first-boot intent before Incus starts; an early failure can retry.
+if [ "$new_data" = true ]; then
+    touch /var/lib/incus/.tama-preseed-pending
+    sync
 fi
 mkdir -p /mnt/tama-shares
 # No configured share device is a normal case; never fall back to sharing home.

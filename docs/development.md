@@ -16,7 +16,17 @@ codesign --force --sign - --entitlements Packaging/virtualization.entitlements .
 
 VZ requires `com.apple.security.virtualization` on the executable. Development signing is ad hoc. Production signing/notarization is a future release task. Apple APIs detect unsupported hardware/policy; nested support is never inferred from the model name.
 
-## Prepare a Debian appliance
+## Git Flow
+
+The long-lived branches are `main` for released history and `develop` for integration. The initial implementation lives on `feature/native-incus-runtime`; `main` and `develop` begin at the SwiftPM bootstrap commit. Publishing the feature branch does not finish the feature or mark hardware acceptance complete.
+
+Create `feature/<name>` from `develop` and merge completed, validated features back into `develop`. Create `release/<version>` from `develop`; finish the validated release into both `main` and `develop` and tag it on `main`. Create urgent `hotfix/<name>` branches from `main` and finish them into both long-lived branches. Branch publication and finishing are separate actions; release readiness requires the acceptance evidence in OpenSpec.
+
+Use normal Git commands or a Git Flow client with these branch names. Local `gitflow.*` configuration records `main`, `develop`, `feature/`, `release/`, `hotfix/` and `support/`; the repository does not require a Git Flow CLI.
+
+## Prototype appliance preparation
+
+The normative appliance is Alpine Linux ARM64 with OpenRC and signed APK packages. Tasks 2.2–2.4 in OpenSpec track migration of the following Debian prototype instructions and guest scripts. They describe historical implementation inputs, not Alpine readiness or release acceptance.
 
 Obtain the official **Debian 13 generic ARM64 raw image** from [Debian's cloud image catalog](https://cloud.debian.org/images/cloud/trixie/). Verify the archive against Debian's published SHA512SUMS using a trusted catalog/release input, then extract `disk.raw` using the system `tar`. Use a versioned image URL for repeatability. Do not use qcow2: VZ attaches raw images directly. The image preparation tool takes a local raw image and uses only Python's standard library and macOS hdiutil; it does not run a VM.
 
@@ -33,7 +43,7 @@ The generated manifest records schema 1, appliance ID, arm64, raw filename, SHA-
 
 ## Integration acceptance
 
-Install a standard native Incus client separately, or point `--incus` at a verified local binary. The runtime has no client dependency. Run the acceptance script against a dedicated created/ready state directory; it creates uniquely named test workloads and removes them on success. It exercises Incus container and OCI boot, exec/WebSocket, outbound networking, persistence across outer restart, offline growth, explicit shares, and nested VM boot where live capabilities permit. Preserve logs/report on failure.
+Install a standard native Incus client separately, or point `--incus` at a verified local binary. The runtime has no client dependency. Run the acceptance script against a dedicated created/ready state directory; it creates uniquely named test workloads/remotes and removes them on success. It exercises Incus container and OCI boot, exec/WebSocket, outbound networking, persistence across outer restart, host disk and guest filesystem growth, and nested VM boot where live capabilities permit. VirtioFS shares and their access modes require separate configured-share acceptance; this runner explicitly excludes them from its reported scope. Preserve logs/report on failure.
 
 ```sh
 python3 Integration/scripts/acceptance.py \
@@ -41,12 +51,14 @@ python3 Integration/scripts/acceptance.py \
   --report .integration/acceptance.json
 ```
 
-Unit tests never silently boot VMs. CI-ready commands are in `Integration/scripts/check.sh`; a self-hosted macOS ARM64 runner with Swift 6.4 is needed for opt-in hardware jobs. Run shell syntax/Python checks in addition to Swift checks. Guest systemd unit validation runs during live acceptance.
+Unit tests never silently boot VMs. CI-ready commands are in `Integration/scripts/check.sh`; a self-hosted macOS ARM64 runner with Swift 6.4 is needed for opt-in hardware jobs. Run shell syntax/Python checks in addition to Swift checks. The prototype uses systemd; Alpine acceptance must instead verify OpenRC dependency ordering and restart behavior.
 
 ## Recovery and safety
 
 Keep the state directory private (0700) and sockets/config private (0600). The daemon holds a nonblocking process lock; a second process cannot replace its sockets. Custom symlink roots/endpoints are rejected, while macOS's standard /var and /tmp ancestor aliases are recognized. Darwin limits Unix socket paths to 103 bytes; use a short state path.
 
 After daemon crash, durable configuration is loaded as stopped; readiness is never reused. A boot failure retains disks and a private `serial.log`; inspect it before stopping/retrying. A graceful stop timeout leaves the running guest intact, allowing an explicit forced stop. Do not shrink or replace a live disk. Disk growth and configuration must occur while stopped; rerunning boot grows ext4. A partial create retains its disks for explicit recovery/reset rather than erasing potential data. Reset with DELETE and `confirm=true` only after stopping. It destroys all appliance Incus data.
+
+Prototype guest initialization records persistent pending/started markers on a newly formatted data disk. A failure before preseed begins can retry on reboot. If preseed starts and fails or is interrupted, provisioning refuses to replay it automatically; preserve the disk and inspect diagnostics before explicit recovery/reset. Reused disks without pending initialization keep their existing Incus configuration, including custom pool names.
 
 Do not replace root disks in place to upgrade Incus. A future upgrade protocol must back up data, validate guest/helper/Incus schema compatibility, and provide rollback. Local FileVault and account permissions are the v1 host security basis; no Secure Boot/TPM requirement is imposed.

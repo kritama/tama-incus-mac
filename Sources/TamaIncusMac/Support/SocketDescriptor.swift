@@ -11,6 +11,8 @@ public final class SocketDescriptor: @unchecked Sendable {
     var enabled: Int32 = 1
     setsockopt(descriptor, SOL_SOCKET, SO_NOSIGPIPE, &enabled, socklen_t(MemoryLayout<Int32>.size))
     _ = fcntl(descriptor, F_SETFD, FD_CLOEXEC)
+    let flags = fcntl(descriptor, F_GETFL)
+    if flags >= 0 { _ = fcntl(descriptor, F_SETFL, flags & ~O_NONBLOCK) }
   }
   deinit { Darwin.close(rawValue) }
   public func shutdown() { _ = Darwin.shutdown(rawValue, SHUT_RDWR) }
@@ -50,7 +52,7 @@ public enum SocketRelay {
     await withTaskGroup(of: Void.self) { group in
       for (input, output) in [(first, second), (second, first)] {
         group.addTask {
-          await Task.detached {
+          try? await SocketIO.run {
             do {
               while true {
                 let chunk = try input.read()
@@ -64,11 +66,23 @@ public enum SocketRelay {
               first.shutdown()
               second.shutdown()
             }
-          }.value
+          }
         }
       }
     }
     first.shutdown()
     second.shutdown()
+  }
+}
+
+/// Blocking socket operations run on GCD rather than occupying Swift's cooperative executor.
+public enum SocketIO {
+  private static let queue = DispatchQueue(
+    label: "com.kritama.tama-incus-mac.io", attributes: .concurrent)
+  public static func run<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T
+  {
+    try await withCheckedThrowingContinuation { continuation in
+      queue.async { continuation.resume(with: Result { try work() }) }
+    }
   }
 }

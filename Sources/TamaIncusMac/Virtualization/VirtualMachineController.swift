@@ -8,6 +8,7 @@ public final class VirtualMachineController: NSObject, VirtualMachineDriver,
   @MainActor VZVirtualMachineDelegate
 {
   private var machine: VZVirtualMachine?
+  private var activity: (any NSObjectProtocol)?
   private var connections: [UUID: VZVirtioSocketConnection] = [:]
   private let logger = Logger(subsystem: "com.kritama.tama-incus-mac", category: "virtualization")
   public override init() { super.init() }
@@ -20,7 +21,14 @@ public final class VirtualMachineController: NSObject, VirtualMachineDriver,
       configuration: try VirtualMachineConfiguration.make(configuration, paths: paths))
     vm.delegate = self
     machine = vm
-    try await vm.start()
+    endActivity()
+    activity = ProcessInfo.processInfo.beginActivity(
+      options: .userInitiatedAllowingIdleSystemSleep,
+      reason: "Run user-requested Incus host VM")
+    do { try await vm.start() } catch {
+      endActivity()
+      throw error
+    }
   }
   public func requestStop() async throws {
     guard let machine, machine.canRequestStop else {
@@ -35,6 +43,7 @@ public final class VirtualMachineController: NSObject, VirtualMachineDriver,
     connections.removeAll()
     guard let machine, machine.canStop else { return }
     try await machine.stop()
+    endActivity()
   }
   public func isRunning() async -> Bool {
     guard let machine else { return false }
@@ -46,18 +55,44 @@ public final class VirtualMachineController: NSObject, VirtualMachineDriver,
     else {
       throw RuntimeError(.unavailable, "Guest socket device is unavailable")
     }
-    let connection = try await device.connect(toPort: port)
-    let descriptor = try SocketDescriptor(dup(connection.fileDescriptor))
-    let id = UUID()
-    connections[id] = connection
-    return GuestStream(socket: descriptor) { [weak self] in await self?.releaseConnection(id) }
+    let attempt = GuestConnectionAttempt()
+    return try await attempt.wait { [self] attempt in
+      device.connect(toPort: port) { [self] result in
+        // VZ invokes this completion on the VM's queue, which is the main queue.
+        MainActor.assumeIsolated {
+          guard attempt.isPending else {
+            // VZ has no cancel-connect API. Discard a connection delivered after
+            // our deadline/cancellation instead of retaining or exposing it.
+            if case .success(let connection) = result {
+              _ = Darwin.shutdown(connection.fileDescriptor, SHUT_RDWR)
+            }
+            return
+          }
+          do {
+            let connection = try result.get()
+            let descriptor = try SocketDescriptor(dup(connection.fileDescriptor))
+            let id = UUID()
+            self.connections[id] = connection
+            let stream = GuestStream(socket: descriptor) { [weak self] in
+              await self?.releaseConnection(id)
+            }
+            attempt.finish(.success(stream))
+          } catch {
+            if case .success(let connection) = result {
+              _ = Darwin.shutdown(connection.fileDescriptor, SHUT_RDWR)
+            }
+            attempt.finish(.failure(error))
+          }
+        }
+      }
+    }
   }
   private func releaseConnection(_ id: UUID) { connections.removeValue(forKey: id) }
   public func health() async throws -> GuestHealth {
     let stream = try await openStream(port: 8444)
     stream.socket.timeout(seconds: 2)
     do {
-      let data = try await Task.detached {
+      let data = try await SocketIO.run {
         try stream.socket.write(
           Data("GET /health HTTP/1.1\r\nHost: guest\r\nConnection: close\r\n\r\n".utf8))
         var result = Data()
@@ -70,7 +105,7 @@ public final class VirtualMachineController: NSObject, VirtualMachineDriver,
           }
         }
         return result
-      }.value
+      }
       stream.socket.shutdown()
       await stream.release()
       guard let split = data.range(of: Data("\r\n\r\n".utf8)),
@@ -94,7 +129,12 @@ public final class VirtualMachineController: NSObject, VirtualMachineDriver,
     closeConnections()
     logger.error("Guest failed: \(error.localizedDescription, privacy: .public)")
   }
+  private func endActivity() {
+    if let activity { ProcessInfo.processInfo.endActivity(activity) }
+    activity = nil
+  }
   private func closeConnections() {
+    endActivity()
     for connection in connections.values {
       _ = Darwin.shutdown(connection.fileDescriptor, SHUT_RDWR)
     }

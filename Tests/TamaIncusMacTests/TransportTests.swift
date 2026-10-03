@@ -28,6 +28,33 @@ func socketPair() throws -> (SocketDescriptor, SocketDescriptor) {
   return try (SocketDescriptor(descriptors[0]), SocketDescriptor(descriptors[1]))
 }
 
+@Test @MainActor func unresponsiveGuestConnectionHasDeadline() async throws {
+  let attempt = GuestConnectionAttempt()
+  let began = ContinuousClock.now
+  do {
+    _ = try await attempt.wait(timeout: .milliseconds(20)) { _ in }
+    Issue.record("An unresponsive connection unexpectedly succeeded")
+  } catch let error as RuntimeError {
+    #expect(error.code == .timeout)
+  }
+  #expect(began.duration(to: .now) < .seconds(2))
+  #expect(!attempt.isPending)
+  #expect(!attempt.finish(.failure(RuntimeError(.unavailable, "Late callback"))))
+}
+
+@Test @MainActor func pendingGuestConnectionCanBeCancelled() async throws {
+  let attempt = GuestConnectionAttempt()
+  var requested = false
+  let task = Task { try await attempt.wait(timeout: .seconds(30)) { _ in requested = true } }
+  while !requested { await Task.yield() }
+  task.cancel()
+  switch await task.result {
+  case .failure(let error): #expect(error is CancellationError)
+  case .success: Issue.record("Cancelled connection unexpectedly succeeded")
+  }
+  #expect(!attempt.isPending)
+}
+
 @Test func transparentRelayPreservesBinaryAndHalfClose() async throws {
   let (client, host) = try socketPair()
   let (guest, server) = try socketPair()

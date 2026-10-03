@@ -9,6 +9,8 @@ public actor RuntimeService {
   private var lastError: String?
   private var guestHealth: GuestHealth?
   private var mutationActive = false
+  private var generation: UInt64 = 0
+  private var startingTask: Task<RuntimeStatus, Error>?
   private var startedAt: Date?
   private let logger = Logger(subsystem: "com.kritama.tama-incus-mac", category: "runtime")
 
@@ -84,19 +86,30 @@ public actor RuntimeService {
   }
   public func start() async throws -> RuntimeStatus {
     try beginMutation()
-    defer { mutationActive = false }
-    return try await startLocked()
+    let operationGeneration = generation
+    defer { if generation == operationGeneration { mutationActive = false } }
+    return try await boot()
   }
   public func stop(force: Bool = false) async throws -> RuntimeStatus {
+    if force, mutationActive, state == .starting, let startingTask {
+      // Emergency stop owns the mutation gate after cancelling the boot task.
+      generation &+= 1
+      state = .stopping
+      startingTask.cancel()
+      _ = try? await startingTask.value
+      defer { mutationActive = false }
+      return try await stopLocked(force: true)
+    }
     try beginMutation()
     defer { mutationActive = false }
     return try await stopLocked(force: force)
   }
   public func restart() async throws -> RuntimeStatus {
     try beginMutation()
-    defer { mutationActive = false }
+    let operationGeneration = generation
+    defer { if generation == operationGeneration { mutationActive = false } }
     _ = try await stopLocked(force: false)
-    return try await startLocked()
+    return try await boot()
   }
   public func delete(confirm: Bool) async throws -> RuntimeStatus {
     try beginMutation()
@@ -122,7 +135,14 @@ public actor RuntimeService {
     guard !mutationActive else {
       throw RuntimeError(.conflict, "A runtime mutation is already in progress")
     }
+    generation &+= 1
     mutationActive = true
+  }
+  private func boot() async throws -> RuntimeStatus {
+    let task = Task { try await self.startLocked() }
+    startingTask = task
+    defer { startingTask = nil }
+    return try await task.value
   }
   private func startLocked() async throws -> RuntimeStatus {
     let value = try config()
@@ -139,6 +159,7 @@ public actor RuntimeService {
     guestHealth = nil
     logger.info("Starting outer Linux VM")
     do {
+      try Task.checkCancellation()
       try await driver.start(configuration: value, paths: store.paths)
       startedAt = Date()
       let deadline = ContinuousClock.now.advanced(by: .seconds(value.readinessTimeoutSeconds))
@@ -149,6 +170,7 @@ public actor RuntimeService {
             .unavailable, "Guest exited before Incus became ready; inspect serial.log")
         }
         if let health = try? await driver.health(), health.protocolVersion == 1 {
+          try Task.checkCancellation()
           guestHealth = health
           state = .ready
           logger.info("Incus ready: \(health.incusVersion, privacy: .public)")
@@ -200,17 +222,24 @@ public actor RuntimeService {
   }
   private func refresh() async {
     guard state == .ready, !mutationActive else { return }
-    if !(await driver.isRunning()) {
+    let observedGeneration = generation
+    let running = await driver.isRunning()
+    guard state == .ready, !mutationActive, generation == observedGeneration else { return }
+    if !running {
       state = .failed
       lastError = "Guest exited unexpectedly"
       guestHealth = nil
       startedAt = nil
-    } else if let live = try? await driver.health(), live.protocolVersion == 1 {
-      guestHealth = live
     } else {
-      state = .failed
-      guestHealth = nil
-      lastError = "Guest health unavailable; stop/start to recover"
+      let live = try? await driver.health()
+      guard state == .ready, !mutationActive, generation == observedGeneration else { return }
+      if let live, live.protocolVersion == 1 {
+        guestHealth = live
+      } else {
+        state = .failed
+        guestHealth = nil
+        lastError = "Guest health unavailable; stop/start to recover"
+      }
     }
   }
   private func snapshot() -> RuntimeStatus {

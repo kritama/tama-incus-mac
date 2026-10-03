@@ -9,6 +9,14 @@ public struct DirectoryShare: Codable, Sendable, Equatable {
     self.path = path
     self.readOnly = readOnly
   }
+  enum CodingKeys: String, CodingKey { case name, path, readOnly }
+  public init(from decoder: any Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    name = try values.decode(String.self, forKey: .name)
+    path = try values.decode(String.self, forKey: .path)
+    readOnly = try values.decodeIfPresent(Bool.self, forKey: .readOnly) ?? true
+  }
+
 }
 
 public struct RuntimeConfiguration: Codable, Sendable, Equatable {
