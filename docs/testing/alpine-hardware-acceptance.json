@@ -1,0 +1,485 @@
+{
+  "schema_version": 1,
+  "started_at": "2026-10-03T19:12:23.188352+00:00",
+  "scope": "Alpine/Incus readiness, workload boot/exec/network, persistence, storage growth, read-only/writable VirtioFS and conditional nested VM",
+  "checks": {
+    "linux_incus_ready": true,
+    "alpine_guest": true,
+    "standard_client_unix_vsock": true,
+    "system_container_exec_websocket": true,
+    "container_outbound_network": true,
+    "oci_workload_exec_websocket": true,
+    "oci_cached_artifact_before_restart": true,
+    "outer_restart_persistence": true,
+    "host_data_disk_growth": true,
+    "guest_storage_capacity_growth": {
+      "pool": "default",
+      "before_bytes": 8350298112,
+      "after_bytes": 9407197184
+    },
+    "growth_preserves_instance_data": true,
+    "offline_data_disk_growth": true,
+    "virtiofs_readonly_readonly": true,
+    "virtiofs_writable_writable": true,
+    "virtiofs_shares": true,
+    "nested_vm_guest_agent_exec": true,
+    "cached_oci_image_reuse_after_restart": true
+  },
+  "commands": [
+    {
+      "arguments": [
+        "remote",
+        "add",
+        "native",
+        "unix:<workspace>/.integration/a14/incus.sock"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "remote",
+        "switch",
+        "native"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "info"
+      ],
+      "exit_code": 0,
+      "stdout": "config:\n  images.auto_update_interval: \"0\"\napi_extensions_count: 529\napi_status: stable\napi_version: \"1.0\"\nauth: trusted\npublic: false\nauth_methods:\n  - tls\nauth_user_name: root\nauth_user_method: unix\nenvironment:\n  addresses: []\n  architectures:\n    - aarch64\n    - armv6l\n    - armv7l\n    - armv8l\n  certificate: \"\"\n  certificate_fingerprint: c5988b23d0bccaba02e7061920159554212b52c3f3f7afe21caf41b01a44f422\n  driver: lxc | qemu\n  driver_version: 7.0.0 | 11.0.3\n  firewall: nftables\n  kernel: Linux\n  kernel_architecture: aarch64\n  kernel_features: {}\n  kernel_version: 6.18.52-0-lts\n  lxc_features: {}\n  os_name: Alpine Linux\n  os_version: 3.24.2\n  project: default\n  server: incus\n  server_clustered: false\n  server_event_mode: full-mesh\n  server_name: tama-incus\n  server_pid: 3296\n  server_version: 7.0.1\n  storage: dir\n  storage_version: \"1\"\n  storage_supported_drivers:\n    - name: dir\n      version: \"1\"\n      remote: false\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "query",
+        "/1.0"
+      ],
+      "exit_code": 0,
+      "stdout": "Full API extension response omitted; selected server environment is recorded above.",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "launch",
+        "images:debian/13",
+        "tama-test-f5c50498cc",
+        "-c",
+        "boot.autostart=true"
+      ],
+      "exit_code": 0,
+      "stdout": "Launching tama-test-f5c50498cc\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-f5c50498cc",
+        "--",
+        "sh",
+        "-c",
+        "printf b81f3c228da54ddf8df41c7706b68375 > /root/tama-persistence; uname -m"
+      ],
+      "exit_code": 0,
+      "stdout": "aarch64\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-f5c50498cc",
+        "--",
+        "sh",
+        "-c",
+        "for i in 1 2 3 4 5; do ping -c 1 -W 3 1.1.1.1 && exit 0; sleep 1; done; exit 1"
+      ],
+      "exit_code": 0,
+      "stdout": "PING 1.1.1.1 (1.1.1.1) 56(84) bytes of data.\n64 bytes from 1.1.1.1: icmp_seq=1 ttl=53 time=6.52 ms\n\n--- 1.1.1.1 ping statistics ---\n1 packets transmitted, 1 received, 0% packet loss, time 0ms\nrtt min/avg/max/mdev = 6.524/6.524/6.524/0.000 ms\n",
+      "stderr": "ping: connect: Network is unreachable\n"
+    },
+    {
+      "arguments": [
+        "remote",
+        "add",
+        "tama-test-f5c50498cc-remote",
+        "https://docker.io",
+        "--protocol=oci"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "launch",
+        "tama-test-f5c50498cc-remote:alpine:3.23",
+        "tama-test-f5c50498cc-oci",
+        "-c",
+        "oci.entrypoint=sleep 3600"
+      ],
+      "exit_code": 0,
+      "stdout": "Launching tama-test-f5c50498cc-oci\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-f5c50498cc-oci",
+        "--",
+        "uname",
+        "-s"
+      ],
+      "exit_code": 0,
+      "stdout": "Linux\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "query",
+        "/1.0/instances/tama-test-f5c50498cc-oci"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n\t\"architecture\": \"aarch64\",\n\t\"config\": {\n\t\t\"environment.HOME\": \"/root\",\n\t\t\"environment.PATH\": \"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n\t\t\"environment.TERM\": \"xterm\",\n\t\t\"image.architecture\": \"aarch64\",\n\t\t\"image.description\": \"docker.io/library/alpine (OCI)\",\n\t\t\"image.id\": \"alpine:3.23\",\n\t\t\"image.type\": \"oci\",\n\t\t\"oci.cwd\": \"/\",\n\t\t\"oci.entrypoint\": \"sleep 3600\",\n\t\t\"oci.gid\": \"0\",\n\t\t\"oci.uid\": \"0\",\n\t\t\"volatile.base_image\": \"ceca93ee873fb842e329402f8654751492b1b9594eb39575480e68730052f2d1\",\n\t\t\"volatile.cloud-init.instance-id\": \"a0b98c01-2f1e-4db3-a482-abe15c751595\",\n\t\t\"volatile.container.oci\": \"true\",\n\t\t\"volatile.eth0.host_name\": \"veth36679253\",\n\t\t\"volatile.eth0.hwaddr\": \"10:66:6a:0a:af:17\",\n\t\t\"volatile.eth0.name\": \"eth0\",\n\t\t\"volatile.idmap.base\": \"0\",\n\t\t\"volatile.idmap.current\": \"[{\\\"Isuid\\\":true,\\\"Isgid\\\":false,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000},{\\\"Isuid\\\":false,\\\"Isgid\\\":true,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000}]\",\n\t\t\"volatile.idmap.next\": \"[{\\\"Isuid\\\":true,\\\"Isgid\\\":false,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000},{\\\"Isuid\\\":false,\\\"Isgid\\\":true,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000}]\",\n\t\t\"volatile.last_state.idmap\": \"[]\",\n\t\t\"volatile.last_state.power\": \"RUNNING\",\n\t\t\"volatile.uuid\": \"314aea3b-5d4b-4d6c-91c8-c92bc27dc598\",\n\t\t\"volatile.uuid.generation\": \"314aea3b-5d4b-4d6c-91c8-c92bc27dc598\"\n\t},\n\t\"created_at\": \"2026-10-03T19:12:38.531799331Z\",\n\t\"description\": \"\",\n\t\"devices\": {},\n\t\"ephemeral\": false,\n\t\"expanded_config\": {\n\t\t\"environment.HOME\": \"/root\",\n\t\t\"environment.PATH\": \"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n\t\t\"environment.TERM\": \"xterm\",\n\t\t\"image.architecture\": \"aarch64\",\n\t\t\"image.description\": \"docker.io/library/alpine (OCI)\",\n\t\t\"image.id\": \"alpine:3.23\",\n\t\t\"image.type\": \"oci\",\n\t\t\"oci.cwd\": \"/\",\n\t\t\"oci.entrypoint\": \"sleep 3600\",\n\t\t\"oci.gid\": \"0\",\n\t\t\"oci.uid\": \"0\",\n\t\t\"volatile.base_image\": \"ceca93ee873fb842e329402f8654751492b1b9594eb39575480e68730052f2d1\",\n\t\t\"volatile.cloud-init.instance-id\": \"a0b98c01-2f1e-4db3-a482-abe15c751595\",\n\t\t\"volatile.container.oci\": \"true\",\n\t\t\"volatile.eth0.host_name\": \"veth36679253\",\n\t\t\"volatile.eth0.hwaddr\": \"10:66:6a:0a:af:17\",\n\t\t\"volatile.eth0.name\": \"eth0\",\n\t\t\"volatile.idmap.base\": \"0\",\n\t\t\"volatile.idmap.current\": \"[{\\\"Isuid\\\":true,\\\"Isgid\\\":false,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000},{\\\"Isuid\\\":false,\\\"Isgid\\\":true,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000}]\",\n\t\t\"volatile.idmap.next\": \"[{\\\"Isuid\\\":true,\\\"Isgid\\\":false,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000},{\\\"Isuid\\\":false,\\\"Isgid\\\":true,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000}]\",\n\t\t\"volatile.last_state.idmap\": \"[]\",\n\t\t\"volatile.last_state.power\": \"RUNNING\",\n\t\t\"volatile.uuid\": \"314aea3b-5d4b-4d6c-91c8-c92bc27dc598\",\n\t\t\"volatile.uuid.generation\": \"314aea3b-5d4b-4d6c-91c8-c92bc27dc598\"\n\t},\n\t\"expanded_devices\": {\n\t\t\"eth0\": {\n\t\t\t\"network\": \"incusbr0\",\n\t\t\t\"type\": \"nic\"\n\t\t},\n\t\t\"root\": {\n\t\t\t\"path\": \"/\",\n\t\t\t\"pool\": \"default\",\n\t\t\t\"type\": \"disk\"\n\t\t}\n\t},\n\t\"last_used_at\": \"2026-10-03T19:12:38.793004373Z\",\n\t\"location\": \"none\",\n\t\"name\": \"tama-test-f5c50498cc-oci\",\n\t\"profiles\": [\n\t\t\"default\"\n\t],\n\t\"project\": \"default\",\n\t\"stateful\": false,\n\t\"status\": \"Running\",\n\t\"status_code\": 103,\n\t\"type\": \"container\"\n}\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "image",
+        "export",
+        "ceca93ee873fb842e329402f8654751492b1b9594eb39575480e68730052f2d1",
+        "<workspace>/.integration/a14/acceptance-client/tama-test-f5c50498cc/oci-cache-before-restart"
+      ],
+      "exit_code": 0,
+      "stdout": "\nImage exported successfully!\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-f5c50498cc",
+        "--",
+        "cat",
+        "/root/tama-persistence"
+      ],
+      "exit_code": 0,
+      "stdout": "b81f3c228da54ddf8df41c7706b68375",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "query",
+        "/1.0/profiles/default"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n\t\"config\": {},\n\t\"description\": \"Default Incus profile\",\n\t\"devices\": {\n\t\t\"eth0\": {\n\t\t\t\"network\": \"incusbr0\",\n\t\t\t\"type\": \"nic\"\n\t\t},\n\t\t\"root\": {\n\t\t\t\"path\": \"/\",\n\t\t\t\"pool\": \"default\",\n\t\t\t\"type\": \"disk\"\n\t\t}\n\t},\n\t\"name\": \"default\",\n\t\"project\": \"default\",\n\t\"used_by\": [\n\t\t\"/1.0/instances/tama-test-f5c50498cc\",\n\t\t\"/1.0/instances/tama-test-f5c50498cc-oci\"\n\t]\n}\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "query",
+        "/1.0/storage-pools/default/resources"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n\t\"inodes\": {\n\t\t\"total\": 524288,\n\t\t\"used\": 16336\n\t},\n\t\"space\": {\n\t\t\"total\": 8350298112,\n\t\t\"used\": 627851264\n\t}\n}\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "query",
+        "/1.0/storage-pools/default/resources"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n\t\"inodes\": {\n\t\t\"total\": 589824,\n\t\t\"used\": 16337\n\t},\n\t\"space\": {\n\t\t\"total\": 9407197184,\n\t\t\"used\": 628387840\n\t}\n}\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-f5c50498cc",
+        "--",
+        "cat",
+        "/root/tama-persistence"
+      ],
+      "exit_code": 0,
+      "stdout": "b81f3c228da54ddf8df41c7706b68375",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "launch",
+        "images:alpine/3.24",
+        "tama-test-f5c50498cc-shares",
+        "-c",
+        "security.privileged=true"
+      ],
+      "exit_code": 0,
+      "stdout": "Launching tama-test-f5c50498cc-shares\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "config",
+        "device",
+        "add",
+        "tama-test-f5c50498cc-shares",
+        "share-0",
+        "disk",
+        "source=/mnt/tama-shares/readonly",
+        "path=/mnt/tama-test-share-0",
+        "readonly=false"
+      ],
+      "exit_code": 0,
+      "stdout": "Device share-0 added to tama-test-f5c50498cc-shares\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-f5c50498cc-shares",
+        "--",
+        "cat",
+        "/mnt/tama-test-share-0/.tama-share-92eb1bff0f3244b7bb7da1e94db71126"
+      ],
+      "exit_code": 0,
+      "stdout": "b6dc4f84d8734abfaef978688770de78",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-f5c50498cc-shares",
+        "--",
+        "sh",
+        "-c",
+        "if printf changed > /mnt/tama-test-share-0/.tama-share-92eb1bff0f3244b7bb7da1e94db71126; then exit 1; fi; cat /mnt/tama-test-share-0/.tama-share-92eb1bff0f3244b7bb7da1e94db71126"
+      ],
+      "exit_code": 0,
+      "stdout": "b6dc4f84d8734abfaef978688770de78",
+      "stderr": "sh: can't create /mnt/tama-test-share-0/.tama-share-92eb1bff0f3244b7bb7da1e94db71126: Permission denied\n"
+    },
+    {
+      "arguments": [
+        "config",
+        "device",
+        "add",
+        "tama-test-f5c50498cc-shares",
+        "share-1",
+        "disk",
+        "source=/mnt/tama-shares/writable",
+        "path=/mnt/tama-test-share-1",
+        "readonly=false"
+      ],
+      "exit_code": 0,
+      "stdout": "Device share-1 added to tama-test-f5c50498cc-shares\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-f5c50498cc-shares",
+        "--",
+        "cat",
+        "/mnt/tama-test-share-1/.tama-share-e23f293783ef4b3ebb1feb113f890e9b"
+      ],
+      "exit_code": 0,
+      "stdout": "ba1744cebe284cd5834044c8ee17ba60",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-f5c50498cc-shares",
+        "--",
+        "sh",
+        "-c",
+        "printf 2cea3f40e7ba4b5389337ae44efa6237 > /mnt/tama-test-share-1/.tama-share-e23f293783ef4b3ebb1feb113f890e9b; cat /mnt/tama-test-share-1/.tama-share-e23f293783ef4b3ebb1feb113f890e9b"
+      ],
+      "exit_code": 0,
+      "stdout": "2cea3f40e7ba4b5389337ae44efa6237",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "launch",
+        "images:debian/13",
+        "tama-test-f5c50498cc-vm",
+        "--vm",
+        "-c",
+        "limits.cpu=2",
+        "-c",
+        "limits.memory=1GiB",
+        "-c",
+        "security.secureboot=false"
+      ],
+      "exit_code": 0,
+      "stdout": "Launching tama-test-f5c50498cc-vm\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-f5c50498cc-vm",
+        "--",
+        "uname",
+        "-m"
+      ],
+      "exit_code": 0,
+      "stdout": "aarch64\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "launch",
+        "tama-test-f5c50498cc-remote:alpine:3.23",
+        "tama-test-f5c50498cc-oci-reuse",
+        "-c",
+        "oci.entrypoint=sleep 3600"
+      ],
+      "exit_code": 0,
+      "stdout": "Launching tama-test-f5c50498cc-oci-reuse\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-f5c50498cc-oci-reuse",
+        "--",
+        "uname",
+        "-s"
+      ],
+      "exit_code": 0,
+      "stdout": "Linux\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "delete",
+        "tama-test-f5c50498cc",
+        "--force"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "delete",
+        "tama-test-f5c50498cc-oci",
+        "--force"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "delete",
+        "tama-test-f5c50498cc-oci-reuse",
+        "--force"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "delete",
+        "tama-test-f5c50498cc-vm",
+        "--force"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "delete",
+        "tama-test-f5c50498cc-shares",
+        "--force"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "remote",
+        "remove",
+        "tama-test-f5c50498cc-remote"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "oci_image": "docker.io/library/alpine:3.23",
+  "capabilities": {
+    "architecture": "arm64",
+    "capabilities": {
+      "nested_virtualization": true,
+      "oci": true,
+      "system_containers": true,
+      "virtiofs": true,
+      "vm": true
+    },
+    "incus": {
+      "available": true,
+      "version": "7.0.1"
+    },
+    "platform": "darwin",
+    "supported": true,
+    "virtualization": "apple-vz"
+  },
+  "server_environment": {
+    "addresses": [],
+    "architectures": [
+      "aarch64",
+      "armv6l",
+      "armv7l",
+      "armv8l"
+    ],
+    "driver": "lxc | qemu",
+    "driver_version": "7.0.0 | 11.0.3",
+    "firewall": "nftables",
+    "kernel": "Linux",
+    "kernel_architecture": "aarch64",
+    "kernel_features": {},
+    "kernel_version": "6.18.52-0-lts",
+    "lxc_features": {},
+    "os_name": "Alpine Linux",
+    "os_version": "3.24.2",
+    "project": "default",
+    "server": "incus",
+    "server_clustered": false,
+    "server_event_mode": "full-mesh",
+    "server_name": "tama-incus",
+    "server_pid": 3296,
+    "server_version": "7.0.1",
+    "storage": "dir",
+    "storage_supported_drivers": [
+      {
+        "Name": "dir",
+        "Remote": false,
+        "Version": "1"
+      }
+    ],
+    "storage_version": "1"
+  },
+  "oci_fingerprint": "ceca93ee873fb842e329402f8654751492b1b9594eb39575480e68730052f2d1",
+  "status": "passed",
+  "finished_at": "2026-10-03T19:14:14.464037+00:00",
+  "fixture": {
+    "appliance_id": "alpine-3.24.2-incus-a14",
+    "host": "Apple M4 Max, macOS 27.0.1, Swift 6.4",
+    "incus_image_auto_update_interval": "0",
+    "initial_data_gib": 8,
+    "final_data_gib": 9,
+    "source_provenance": "alpine-image.json",
+    "resolved_packages": "alpine-package-versions.txt"
+  }
+}

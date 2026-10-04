@@ -1,0 +1,7 @@
+schema: spec-driven
+context: |
+  Native macOS-only Swift 6 service using Apple Virtualization.framework directly.
+  SwiftPM has one library and one executable. Incus is the canonical workload API.
+  Host owns only outer VM lifecycle and local integration. No external VM runtime,
+  SSH, GUI, workload orchestration, or Incus operation translation. ARM64 and macOS 15+.
+  Actual guest acceptance must be recorded separately from unit test success.

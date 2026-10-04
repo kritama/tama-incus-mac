@@ -1,0 +1,487 @@
+{
+  "schema_version": 1,
+  "started_at": "2026-10-04T02:31:44.948909+00:00",
+  "scope": "Alpine/Incus readiness, workload boot/exec/network, persistence, storage growth, read-only/writable VirtioFS and conditional nested VM",
+  "checks": {
+    "linux_incus_ready": true,
+    "alpine_guest": true,
+    "standard_client_unix_vsock": true,
+    "system_container_exec_websocket": true,
+    "container_outbound_network": true,
+    "oci_workload_exec_websocket": true,
+    "oci_cached_artifact_before_restart": true,
+    "outer_restart_persistence": true,
+    "host_data_disk_growth": true,
+    "guest_storage_capacity_growth": {
+      "pool": "default",
+      "before_bytes": 8350298112,
+      "after_bytes": 9407197184
+    },
+    "growth_preserves_instance_data": true,
+    "offline_data_disk_growth": true,
+    "virtiofs_readonly_readonly": true,
+    "virtiofs_writable_writable": true,
+    "virtiofs_shares": true,
+    "nested_vm_guest_agent_exec": true,
+    "cached_oci_image_reuse_after_restart": true
+  },
+  "commands": [
+    {
+      "arguments": [
+        "remote",
+        "add",
+        "native",
+        "unix:/Users/zacksiri/Development/_kritama/tama-incus-mac/.integration/a15/incus.sock"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "remote",
+        "switch",
+        "native"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "info"
+      ],
+      "exit_code": 0,
+      "stdout": "config:\n  images.auto_update_interval: \"0\"\napi_extensions_count: 529\napi_status: stable\napi_version: \"1.0\"\nauth: trusted\npublic: false\nauth_methods:\n  - tls\nauth_user_name: root\nauth_user_method: unix\nenvironment:\n  addresses: []\n  architectures:\n    - aarch64\n    - armv6l\n    - armv7l\n    - armv8l\n  certificate: \"\"\n  certificate_fingerprint: f9def32c3420974ca6f441f6d3e7937226a5b8f42c0977ae59e5fba4a33fff71\n  driver: lxc | qemu\n  driver_version: 7.0.0 | 11.0.3\n  firewall: nftables\n  kernel: Linux\n  kernel_architecture: aarch64\n  kernel_features: {}\n  kernel_version: 6.18.52-0-lts\n  lxc_features: {}\n  os_name: Alpine Linux\n  os_version: 3.24.2\n  project: default\n  server: incus\n  server_clustered: false\n  server_event_mode: full-mesh\n  server_name: tama-incus\n  server_pid: 3331\n  server_version: 7.0.1\n  storage: dir\n  storage_version: \"1\"\n  storage_supported_drivers:\n    - name: dir\n      version: \"1\"\n      remote: false\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "query",
+        "/1.0"
+      ],
+      "exit_code": 0,
+      "stdout": "t\",\n\t\t\"container_stop_priority\",\n\t\t\"container_syscall_filtering\",\n\t\t\"auth_pki\",\n\t\t\"container_last_used_at\",\n\t\t\"etag\",\n\t\t\"patch\",\n\t\t\"usb_devices\",\n\t\t\"https_allowed_credentials\",\n\t\t\"image_compression_algorithm\",\n\t\t\"directory_manipulation\",\n\t\t\"container_cpu_time\",\n\t\t\"storage_zfs_use_refquota\",\n\t\t\"storage_lvm_mount_options\",\n\t\t\"network\",\n\t\t\"profile_usedby\",\n\t\t\"container_push\",\n\t\t\"container_exec_recording\",\n\t\t\"certificate_update\",\n\t\t\"container_exec_signal_handling\",\n\t\t\"gpu_devices\",\n\t\t\"container_image_properties\",\n\t\t\"migration_progress\",\n\t\t\"id_map\",\n\t\t\"network_firewall_filtering\",\n\t\t\"network_routes\",\n\t\t\"storage\",\n\t\t\"file_delete\",\n\t\t\"file_append\",\n\t\t\"network_dhcp_expiry\",\n\t\t\"storage_lvm_vg_rename\",\n\t\t\"storage_lvm_thinpool_rename\",\n\t\t\"network_vlan\",\n\t\t\"image_create_aliases\",\n\t\t\"container_stateless_copy\",\n\t\t\"container_only_migration\",\n\t\t\"storage_zfs_clone_copy\",\n\t\t\"unix_device_rename\",\n\t\t\"storage_lvm_use_thinpool\",\n\t\t\"storage_rsync_bwlimit\",\n\t\t\"network_vxlan_interface\",\n\t\t\"storage_btrfs_mount_options\",\n\t\t\"entity_description\",\n\t\t\"image_force_refresh\",\n\t\t\"storage_lvm_lv_resizing\",\n\t\t\"id_map_base\",\n\t\t\"file_symlinks\",\n\t\t\"container_push_target\",\n\t\t\"network_vlan_physical\",\n\t\t\"storage_images_delete\",\n\t\t\"container_edit_metadata\",\n\t\t\"container_snapshot_stateful_migration\",\n\t\t\"storage_driver_ceph\",\n\t\t\"storage_ceph_user_name\",\n\t\t\"resource_limits\",\n\t\t\"storage_volatile_initial_source\",\n\t\t\"storage_ceph_force_osd_reuse\",\n\t\t\"storage_block_filesystem_btrfs\",\n\t\t\"resources\",\n\t\t\"kernel_limits\",\n\t\t\"storage_api_volume_rename\",\n\t\t\"network_sriov\",\n\t\t\"console\",\n\t\t\"restrict_dev_incus\",\n\t\t\"migration_pre_copy\",\n\t\t\"infiniband\",\n\t\t\"dev_incus_events\",\n\t\t\"proxy\",\n\t\t\"network_dhcp_gateway\",\n\t\t\"file_get_symlink\",\n\t\t\"network_leases\",\n\t\t\"unix_device_hotplug\",\n\t\t\"storage_api_local_volume_handling\",\n\t\t\"operation_description\",\n\t\t\"clustering\",\n\t\t\"event_lifecycle\",\n\t\t\"storage_api_remote_volume_handling\",\n\t\t\"nvidia_runtime\",\n\t\t\"container_mount_propagation\",\n\t\t\"container_backup\",\n\t\t\"dev_incus_images\",\n\t\t\"container_local_cross_pool_handling\",\n\t\t\"proxy_unix\",\n\t\t\"proxy_udp\",\n\t\t\"clustering_join\",\n\t\t\"proxy_tcp_udp_multi_port_handling\",\n\t\t\"network_state\",\n\t\t\"proxy_unix_dac_properties\",\n\t\t\"container_protection_delete\",\n\t\t\"unix_priv_drop\",\n\t\t\"pprof_http\",\n\t\t\"proxy_haproxy_protocol\",\n\t\t\"network_hwaddr\",\n\t\t\"proxy_nat\",\n\t\t\"network_nat_order\",\n\t\t\"container_full\",\n\t\t\"backup_compression\",\n\t\t\"nvidia_runtime_config\",\n\t\t\"storage_api_volume_snapshots\",\n\t\t\"storage_unmapped\",\n\t\t\"projects\",\n\t\t\"network_vxlan_ttl\",\n\t\t\"container_incremental_copy\",\n\t\t\"usb_optional_vendorid\",\n\t\t\"snapshot_scheduling\",\n\t\t\"snapshot_schedule_aliases\",\n\t\t\"container_copy_project\",\n\t\t\"clustering_server_address\",\n\t\t\"clustering_image_replication\",\n\t\t\"container_protection_shift\",\n\t\t\"snapshot_expiry\",\n\t\t\"container_backup_override_pool\",\n\t\t\"snapshot_expiry_creation\",\n\t\t\"network_leases_location\",\n\t\t\"resources_cpu_socket\",\n\t\t\"resources_gpu\",\n\t\t\"resources_numa\",\n\t\t\"kernel_features\",\n\t\t\"id_map_current\",\n\t\t\"event_location\",\n\t\t\"storage_api_remote_volume_snapshots\",\n\t\t\"network_nat_address\",\n\t\t\"container_nic_routes\",\n\t\t\"cluster_internal_copy\",\n\t\t\"seccomp_notify\",\n\t\t\"lxc_features\",\n\t\t\"container_nic_ipvlan\",\n\t\t\"network_vlan_sriov\",\n\t\t\"storage_cephfs\",\n\t\t\"container_nic_ipfilter\",\n\t\t\"resources_v2\",\n\t\t\"container_exec_user_group_cwd\",\n\t\t\"container_syscall_intercept\",\n\t\t\"container_disk_shift\",\n\t\t\"storage_shifted\",\n\t\t\"resources_infiniband\",\n\t\t\"daemon_storage\",\n\t\t\"instances\",\n\t\t\"image_types\",\n\t\t\"resources_disk_sata\",\n\t\t\"clustering_roles\",\n\t\t\"images_expiry\",\n\t\t\"resources_network_firmware\",\n\t\t\"backup_compression_algorithm\",\n\t\t\"ceph_data_pool_name\",\n\t\t\"container_syscall_intercept_mount\",\n\t\t\"compression_squashfs\",\n\t\t\"container_raw_mount\",\n\t\t\"container_nic_routed\",\n\t\t\"container_syscall_intercept_mount_fuse\",\n\t\t\"container_disk_ceph\",\n\t\t\"virtual-machines\",\n\t\t\"image_profiles\",\n\t\t\"clustering_architecture\",\n\t\t\"resources_disk_id\",\n\t\t\"storage_lvm_stripes\",\n\t\t\"vm_boot_priority\",\n\t\t\"unix_hotplug_devices\",\n\t\t\"api_filtering\",\n\t\t\"instance_nic_network\",\n\t\t\"clustering_sizing\",\n\t\t\"firewall_driver\",\n\t\t\"projects_limits\",\n\t\t\"container_syscall_intercept_hugetlbfs\",\n\t\t\"limits_hugepages\",\n\t\t\"container_nic_routed_gateway\",\n\t\t\"projects_restrictions\",\n\t\t\"custom_volume_snapshot_expiry\",\n\t\t\"volume_snapshot_scheduling\",\n\t\t\"trust_ca_certificates\",\n\t\t\"snapshot_disk_usage\",\n\t\t\"clustering_edit_roles\",\n\t\t\"container_nic_routed_host_address\",\n\t\t\"container_nic_ipvlan_gateway\",\n\t\t\"resources_usb_pci\",\n\t\t\"resources_cpu_threads_numa\",\n\t\t\"resources_cpu_core_die\",\n\t\t\"api_os\",\n\t\t\"container_nic_routed_host_table\",\n\t\t\"container_nic_ipvlan_host_table\",\n\t\t\"container_nic_ipvlan_mode\",\n\t\t\"resources_system\",\n\t\t\"images_push_relay\",\n\t\t\"network_dns_search\",\n\t\t\"container_nic_routed_limits\",\n\t\t\"instance_nic_bridged_vlan\",\n\t\t\"network_state_bond_bridge\",\n\t\t\"usedby_consistency\",\n\t\t\"custom_block_volumes\",\n\t\t\"clustering_failure_domains\",\n\t\t\"resources_gpu_mdev\",\n\t\t\"console_vga_type\",\n\t\t\"projects_limits_disk\",\n\t\t\"network_type_macvlan\",\n\t\t\"network_type_sriov\",\n\t\t\"container_syscall_intercept_bpf_devices\",\n\t\t\"network_type_ovn\",\n\t\t\"projects_networks\",\n\t\t\"projects_networks_restricted_uplinks\",\n\t\t\"custom_volume_backup\",\n\t\t\"backup_override_name\",\n\t\t\"storage_rsync_compression\",\n\t\t\"network_type_physical\",\n\t\t\"network_ovn_external_subnets\",\n\t\t\"network_ovn_nat\",\n\t\t\"network_ovn_external_routes_remove\",\n\t\t\"tpm_device_type\",\n\t\t\"storage_zfs_clone_copy_rebase\",\n\t\t\"gpu_mdev\",\n\t\t\"resources_pci_iommu\",\n\t\t\"resources_network_usb\",\n\t\t\"resources_disk_address\",\n\t\t\"network_physical_ovn_ingress_mode\",\n\t\t\"network_ovn_dhcp\",\n\t\t\"network_physical_routes_anycast\",\n\t\t\"projects_limits_instances\",\n\t\t\"network_state_vlan\",\n\t\t\"instance_nic_bridged_port_isolation\",\n\t\t\"instance_bulk_state_change\",\n\t\t\"network_gvrp\",\n\t\t\"instance_pool_move\",\n\t\t\"gpu_sriov\",\n\t\t\"pci_device_type\",\n\t\t\"storage_volume_state\",\n\t\t\"network_acl\",\n\t\t\"migration_stateful\",\n\t\t\"disk_state_quota\",\n\t\t\"storage_ceph_features\",\n\t\t\"projects_compression\",\n\t\t\"projects_images_remote_cache_expiry\",\n\t\t\"certificate_project\",\n\t\t\"network_ovn_acl\",\n\t\t\"projects_images_auto_update\",\n\t\t\"projects_restricted_cluster_target\",\n\t\t\"images_default_architecture\",\n\t\t\"network_ovn_acl_defaults\",\n\t\t\"gpu_mig\",\n\t\t\"project_usage\",\n\t\t\"network_bridge_acl\",\n\t\t\"warnings\",\n\t\t\"projects_restricted_backups_and_snapshots\",\n\t\t\"clustering_join_token\",\n\t\t\"clustering_description\",\n\t\t\"server_trusted_proxy\",\n\t\t\"clustering_update_cert\",\n\t\t\"storage_api_project\",\n\t\t\"server_instance_driver_operational\",\n\t\t\"server_supported_storage_drivers\",\n\t\t\"event_lifecycle_requestor_address\",\n\t\t\"resources_gpu_usb\",\n\t\t\"clustering_evacuation\",\n\t\t\"network_ovn_nat_address\",\n\t\t\"network_bgp\",\n\t\t\"network_forward\",\n\t\t\"custom_volume_refresh\",\n\t\t\"network_counters_errors_dropped\",\n\t\t\"metrics\",\n\t\t\"image_source_project\",\n\t\t\"clustering_config\",\n\t\t\"network_peer\",\n\t\t\"linux_sysctl\",\n\t\t\"network_dns\",\n\t\t\"ovn_nic_acceleration\",\n\t\t\"certificate_self_renewal\",\n\t\t\"instance_project_move\",\n\t\t\"storage_volume_project_move\",\n\t\t\"cloud_init\",\n\t\t\"network_dns_nat\",\n\t\t\"database_leader\",\n\t\t\"instance_all_projects\",\n\t\t\"clustering_groups\",\n\t\t\"ceph_rbd_du\",\n\t\t\"instance_get_full\",\n\t\t\"qemu_metrics\",\n\t\t\"gpu_mig_uuid\",\n\t\t\"event_project\",\n\t\t\"clustering_evacuation_live\",\n\t\t\"instance_allow_inconsistent_copy\",\n\t\t\"network_state_ovn\",\n\t\t\"storage_volume_api_filtering\",\n\t\t\"image_restrictions\",\n\t\t\"storage_zfs_export\",\n\t\t\"network_dns_records\",\n\t\t\"storage_zfs_reserve_space\",\n\t\t\"network_acl_log\",\n\t\t\"storage_zfs_blocksize\",\n\t\t\"metrics_cpu_seconds\",\n\t\t\"instance_snapshot_never\",\n\t\t\"certificate_token\",\n\t\t\"instance_nic_routed_neighbor_probe\",\n\t\t\"event_hub\",\n\t\t\"agent_nic_config\",\n\t\t\"projects_restricted_intercept\",\n\t\t\"metrics_authentication\",\n\t\t\"images_target_project\",\n\t\t\"images_all_projects\",\n\t\t\"cluster_migration_inconsistent_copy\",\n\t\t\"cluster_ovn_chassis\",\n\t\t\"container_syscall_intercept_sched_setscheduler\",\n\t\t\"storage_lvm_thinpool_metadata_size\",\n\t\t\"storage_volume_state_total\",\n\t\t\"instance_file_head\",\n\t\t\"instances_nic_host_name\",\n\t\t\"image_copy_profile\",\n\t\t\"container_syscall_intercept_sysinfo\",\n\t\t\"clustering_evacuation_mode\",\n\t\t\"resources_pci_vpd\",\n\t\t\"qemu_raw_conf\",\n\t\t\"storage_cephfs_fscache\",\n\t\t\"network_load_balancer\",\n\t\t\"vsock_api\",\n\t\t\"instance_ready_state\",\n\t\t\"network_bgp_holdtime\",\n\t\t\"storage_volumes_all_projects\",\n\t\t\"metrics_memory_oom_total\",\n\t\t\"storage_buckets\",\n\t\t\"storage_buckets_create_credentials\",\n\t\t\"metrics_cpu_effective_total\",\n\t\t\"projects_networks_restricted_access\",\n\t\t\"storage_buckets_local\",\n\t\t\"loki\",\n\t\t\"acme\",\n\t\t\"internal_metrics\",\n\t\t\"cluster_join_token_expiry\",\n\t\t\"remote_token_expiry\",\n\t\t\"init_preseed\",\n\t\t\"storage_volumes_created_at\",\n\t\t\"cpu_hotplug\",\n\t\t\"projects_networks_zones\",\n\t\t\"network_txqueuelen\",\n\t\t\"cluster_member_state\",\n\t\t\"instances_placement_scriptlet\",\n\t\t\"storage_pool_source_wipe\",\n\t\t\"zfs_block_mode\",\n\t\t\"instance_generation_id\",\n\t\t\"disk_io_cache\",\n\t\t\"amd_sev\",\n\t\t\"storage_pool_loop_resize\",\n\t\t\"migration_vm_live\",\n\t\t\"ovn_nic_nesting\",\n\t\t\"oidc\",\n\t\t\"network_ovn_l3only\",\n\t\t\"ovn_nic_acceleration_vdpa\",\n\t\t\"cluster_healing\",\n\t\t\"instances_state_total\",\n\t\t\"auth_user\",\n\t\t\"security_csm\",\n\t\t\"instances_rebuild\",\n\t\t\"numa_cpu_placement\",\n\t\t\"custom_volume_iso\",\n\t\t\"network_allocations\",\n\t\t\"zfs_delegate\",\n\t\t\"storage_api_remote_volume_snapshot_copy\",\n\t\t\"operations_get_query_all_projects\",\n\t\t\"metadata_configuration\",\n\t\t\"syslog_socket\",\n\t\t\"event_lifecycle_name_and_project\",\n\t\t\"instances_nic_limits_priority\",\n\t\t\"disk_initial_volume_configuration\",\n\t\t\"operation_wait\",\n\t\t\"image_restriction_privileged\",\n\t\t\"cluster_internal_custom_volume_copy\",\n\t\t\"disk_io_bus\",\n\t\t\"storage_cephfs_create_missing\",\n\t\t\"instance_move_config\",\n\t\t\"ovn_ssl_config\",\n\t\t\"certificate_description\",\n\t\t\"disk_io_bus_virtio_blk\",\n\t\t\"loki_config_instance\",\n\t\t\"instance_create_start\",\n\t\t\"clustering_evacuation_stop_options\",\n\t\t\"boot_host_shutdown_action\",\n\t\t\"agent_config_drive\",\n\t\t\"network_state_ovn_lr\",\n\t\t\"image_template_permissions\",\n\t\t\"storage_bucket_backup\",\n\t\t\"storage_lvm_cluster\",\n\t\t\"shared_custom_block_volumes\",\n\t\t\"auth_tls_jwt\",\n\t\t\"oidc_claim\",\n\t\t\"device_usb_serial\",\n\t\t\"numa_cpu_balanced\",\n\t\t\"image_restriction_nesting\",\n\t\t\"network_integrations\",\n\t\t\"instance_memory_swap_bytes\",\n\t\t\"network_bridge_external_create\",\n\t\t\"network_zones_all_projects\",\n\t\t\"storage_zfs_vdev\",\n\t\t\"container_migration_stateful\",\n\t\t\"profiles_all_projects\",\n\t\t\"instances_scriptlet_get_instances\",\n\t\t\"instances_scriptlet_get_cluster_members\",\n\t\t\"instances_scriptlet_get_project\",\n\t\t\"network_acl_stateless\",\n\t\t\"instance_state_started_at\",\n\t\t\"networks_all_projects\",\n\t\t\"network_acls_all_projects\",\n\t\t\"storage_buckets_all_projects\",\n\t\t\"resources_load\",\n\t\t\"instance_access\",\n\t\t\"project_access\",\n\t\t\"projects_force_delete\",\n\t\t\"resources_cpu_flags\",\n\t\t\"disk_io_bus_cache_filesystem\",\n\t\t\"instance_oci\",\n\t\t\"clustering_groups_config\",\n\t\t\"instances_lxcfs_per_instance\",\n\t\t\"clustering_groups_vm_cpu_definition\",\n\t\t\"disk_volume_subpath\",\n\t\t\"projects_limits_disk_pool\",\n\t\t\"network_ovn_isolated\",\n\t\t\"qemu_raw_qmp\",\n\t\t\"network_load_balancer_health_check\",\n\t\t\"oidc_scopes\",\n\t\t\"network_integrations_peer_name\",\n\t\t\"qemu_scriptlet\",\n\t\t\"instance_auto_restart\",\n\t\t\"storage_lvm_metadatasize\",\n\t\t\"ovn_nic_promiscuous\",\n\t\t\"ovn_nic_ip_address_none\",\n\t\t\"instances_state_os_info\",\n\t\t\"network_load_balancer_state\",\n\t\t\"instance_nic_macvlan_mode\",\n\t\t\"storage_lvm_cluster_create\",\n\t\t\"network_ovn_external_interfaces\",\n\t\t\"instances_scriptlet_get_instances_count\",\n\t\t\"cluster_rebalance\",\n\t\t\"custom_volume_refresh_exclude_older_snapshots\",\n\t\t\"storage_initial_owner\",\n\t\t\"storage_live_migration\",\n\t\t\"instance_console_screenshot\",\n\t\t\"image_import_alias\",\n\t\t\"authorization_scriptlet\",\n\t\t\"console_force\",\n\t\t\"network_ovn_state_addresses\",\n\t\t\"network_bridge_acl_devices\",\n\t\t\"instance_debug_memory\",\n\t\t\"init_preseed_storage_volumes\",\n\t\t\"init_preseed_profile_project\",\n\t\t\"instance_nic_routed_host_address\",\n\t\t\"instance_smbios11\",\n\t\t\"api_filtering_extended\",\n\t\t\"acme_dns01\",\n\t\t\"security_iommu\",\n\t\t\"network_ipv4_dhcp_routes\",\n\t\t\"network_state_ovn_ls\",\n\t\t\"network_dns_nameservers\",\n\t\t\"acme_http01_port\",\n\t\t\"network_ovn_ipv4_dhcp_expiry\",\n\t\t\"instance_state_cpu_time\",\n\t\t\"network_io_bus\",\n\t\t\"disk_io_bus_usb\",\n\t\t\"storage_driver_linstor\",\n\t\t\"instance_oci_entrypoint\",\n\t\t\"network_address_set\",\n\t\t\"server_logging\",\n\t\t\"network_forward_snat\",\n\t\t\"memory_hotplug\",\n\t\t\"instance_nic_routed_host_tables\",\n\t\t\"instance_publish_split\",\n\t\t\"init_preseed_certificates\",\n\t\t\"custom_volume_sftp\",\n\t\t\"network_ovn_external_nic_address\",\n\t\t\"network_physical_gateway_hwaddr\",\n\t\t\"backup_s3_upload\",\n\t\t\"snapshot_manual_expiry\",\n\t\t\"resources_cpu_address_sizes\",\n\t\t\"disk_attached\",\n\t\t\"limits_memory_hotplug\",\n\t\t\"disk_wwn\",\n\t\t\"server_logging_webhook\",\n\t\t\"storage_driver_truenas\",\n\t\t\"container_disk_tmpfs\",\n\t\t\"instance_limits_oom\",\n\t\t\"backup_override_config\",\n\t\t\"network_ovn_tunnels\",\n\t\t\"init_preseed_cluster_groups\",\n\t\t\"usb_attached\",\n\t\t\"backup_iso\",\n\t\t\"instance_systemd_credentials\",\n\t\t\"cluster_group_usedby\",\n\t\t\"bpf_token_delegation\",\n\t\t\"file_storage_volume\",\n\t\t\"network_hwaddr_pattern\",\n\t\t\"storage_volume_full\",\n\t\t\"storage_bucket_full\",\n\t\t\"device_pci_firmware\",\n\t\t\"resources_serial\",\n\t\t\"ovn_nic_limits\",\n\t\t\"storage_lvmcluster_qcow2\",\n\t\t\"oidc_allowed_subnets\",\n\t\t\"file_delete_force\",\n\t\t\"nic_sriov_select_ext\",\n\t\t\"network_zones_dns_contact\",\n\t\t\"nic_attached_connected\",\n\t\t\"nic_sriov_security_trusted\",\n\t\t\"direct_backup\",\n\t\t\"instance_snapshot_disk_only_restore\",\n\t\t\"unix_hotplug_pci\",\n\t\t\"cluster_evacuating_restoring\",\n\t\t\"projects_restricted_image_servers\",\n\t\t\"storage_lvmcluster_size\",\n\t\t\"authorization_scriptlet_cert\",\n\t\t\"lvmcluster_remove_snapshots\",\n\t\t\"daemon_storage_logs\",\n\t\t\"instances_debug_repair\",\n\t\t\"network_io_bus_ovn\",\n\t\t\"dependent\",\n\t\t\"metrics_project_resources\",\n\t\t\"storage_volume_nbd\",\n\t\t\"projects_restricted_storage_pool_access\",\n\t\t\"server_shutdown_action\",\n\t\t\"instances_placement_scriptlet_rebalance\",\n\t\t\"network_bridge_multicast_snooping\",\n\t\t\"storage_create_options\",\n\t\t\"instances_tpm_platform_cert\",\n\t\t\"linstor_raw\",\n\t\t\"network_address_set_ip_ranges\",\n\t\t\"storage_volumes_rebuild\",\n\t\t\"api_fragments\",\n\t\t\"instance_limits_cpu_topology\",\n\t\t\"instance_nbd\",\n\t\t\"network_bridge_bgp_instances\",\n\t\t\"core_https_allowed_websocket_origin\",\n\t\t\"storage_btrfs_compression\",\n\t\t\"oci_network_config\",\n\t\t\"infiniband_sriov_guid\",\n\t\t\"instance_selinux\"\n\t],\n\t\"api_status\": \"stable\",\n\t\"api_version\": \"1.0\",\n\t\"auth\": \"trusted\",\n\t\"auth_methods\": [\n\t\t\"tls\"\n\t],\n\t\"auth_user_method\": \"unix\",\n\t\"auth_user_name\": \"root\",\n\t\"config\": {\n\t\t\"images.auto_update_interval\": \"0\"\n\t},\n\t\"environment\": {\n\t\t\"addresses\": [],\n\t\t\"architectures\": [\n\t\t\t\"aarch64\",\n\t\t\t\"armv6l\",\n\t\t\t\"armv7l\",\n\t\t\t\"armv8l\"\n\t\t],\n\t\t\"certificate\": \"-----BEGIN CERTIFICATE-----\\nMIICCTCCAY+gAwIBAgIQUIujzE9QLqJyogbxQ3nEfTAKBggqhkjOPQQDAzA1MRkw\\nFwYDVQQKExBMaW51eCBDb250YWluZXJzMRgwFgYDVQQDDA9yb290QHRhbWEtaW5j\\ndXMwHhcNMjYxMDA0MDIzMDMyWhcNMzYxMDAxMDIzMDMyWjA1MRkwFwYDVQQKExBM\\naW51eCBDb250YWluZXJzMRgwFgYDVQQDDA9yb290QHRhbWEtaW5jdXMwdjAQBgcq\\nhkjOPQIBBgUrgQQAIgNiAATRosdR8crr1ms8SNk2xmEgMAikWIX5fnDIeBquJWBF\\nQq7kB2CZ2eUOfODvHJgnPY9F9vqh5CBxiEuqgw1LBGyy5bia2yw59rTsGPq2JbHt\\nF1xSrDGdmZVZaXSeL4bf9LajZDBiMA4GA1UdDwEB/wQEAwIFoDATBgNVHSUEDDAK\\nBggrBgEFBQcDATAMBgNVHRMBAf8EAjAAMC0GA1UdEQQmMCSCCnRhbWEtaW5jdXOH\\nBH8AAAGHEAAAAAAAAAAAAAAAAAAAAAEwCgYIKoZIzj0EAwMDaAAwZQIxAKtxl2mJ\\nwjUzI3DEF4u4sZ+uzl7MhLtH+5I9KZBn9zMi1Qbtx1GPxF0j5FpX2jS7VgIwRtJ3\\n3kqcoYFMDwunsAHkOUuLVRbYPiO7P5aQBn3odHbS+mhQ7Dc5sGhfINe2LJCx\\n-----END CERTIFICATE-----\\n\",\n\t\t\"certificate_fingerprint\": \"f9def32c3420974ca6f441f6d3e7937226a5b8f42c0977ae59e5fba4a33fff71\",\n\t\t\"driver\": \"lxc | qemu\",\n\t\t\"driver_version\": \"7.0.0 | 11.0.3\",\n\t\t\"firewall\": \"nftables\",\n\t\t\"kernel\": \"Linux\",\n\t\t\"kernel_architecture\": \"aarch64\",\n\t\t\"kernel_features\": {},\n\t\t\"kernel_version\": \"6.18.52-0-lts\",\n\t\t\"lxc_features\": {},\n\t\t\"os_name\": \"Alpine Linux\",\n\t\t\"os_version\": \"3.24.2\",\n\t\t\"project\": \"default\",\n\t\t\"server\": \"incus\",\n\t\t\"server_clustered\": false,\n\t\t\"server_event_mode\": \"full-mesh\",\n\t\t\"server_name\": \"tama-incus\",\n\t\t\"server_pid\": 3331,\n\t\t\"server_version\": \"7.0.1\",\n\t\t\"storage\": \"dir\",\n\t\t\"storage_supported_drivers\": [\n\t\t\t{\n\t\t\t\t\"Name\": \"dir\",\n\t\t\t\t\"Remote\": false,\n\t\t\t\t\"Version\": \"1\"\n\t\t\t}\n\t\t],\n\t\t\"storage_version\": \"1\"\n\t},\n\t\"public\": false\n}\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "launch",
+        "images:debian/13",
+        "tama-test-0416755b72",
+        "-c",
+        "boot.autostart=true"
+      ],
+      "exit_code": 0,
+      "stdout": "Launching tama-test-0416755b72\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-0416755b72",
+        "--",
+        "sh",
+        "-c",
+        "printf 95bc00c658c842ebbbb46f103300982e > /root/tama-persistence; uname -m"
+      ],
+      "exit_code": 0,
+      "stdout": "aarch64\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-0416755b72",
+        "--",
+        "sh",
+        "-c",
+        "for i in 1 2 3 4 5; do ping -c 1 -W 3 1.1.1.1 && exit 0; sleep 1; done; exit 1"
+      ],
+      "exit_code": 0,
+      "stdout": "PING 1.1.1.1 (1.1.1.1) 56(84) bytes of data.\n64 bytes from 1.1.1.1: icmp_seq=1 ttl=53 time=6.74 ms\n\n--- 1.1.1.1 ping statistics ---\n1 packets transmitted, 1 received, 0% packet loss, time 0ms\nrtt min/avg/max/mdev = 6.740/6.740/6.740/0.000 ms\n",
+      "stderr": "ping: connect: Network is unreachable\n"
+    },
+    {
+      "arguments": [
+        "remote",
+        "add",
+        "tama-test-0416755b72-remote",
+        "https://docker.io",
+        "--protocol=oci"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "launch",
+        "tama-test-0416755b72-remote:alpine:3.23",
+        "tama-test-0416755b72-oci",
+        "-c",
+        "oci.entrypoint=sleep 3600"
+      ],
+      "exit_code": 0,
+      "stdout": "Launching tama-test-0416755b72-oci\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-0416755b72-oci",
+        "--",
+        "uname",
+        "-s"
+      ],
+      "exit_code": 0,
+      "stdout": "Linux\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "query",
+        "/1.0/instances/tama-test-0416755b72-oci"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n\t\"architecture\": \"aarch64\",\n\t\"config\": {\n\t\t\"environment.HOME\": \"/root\",\n\t\t\"environment.PATH\": \"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n\t\t\"environment.TERM\": \"xterm\",\n\t\t\"image.architecture\": \"aarch64\",\n\t\t\"image.description\": \"docker.io/library/alpine (OCI)\",\n\t\t\"image.id\": \"alpine:3.23\",\n\t\t\"image.type\": \"oci\",\n\t\t\"oci.cwd\": \"/\",\n\t\t\"oci.entrypoint\": \"sleep 3600\",\n\t\t\"oci.gid\": \"0\",\n\t\t\"oci.uid\": \"0\",\n\t\t\"volatile.base_image\": \"ceca93ee873fb842e329402f8654751492b1b9594eb39575480e68730052f2d1\",\n\t\t\"volatile.cloud-init.instance-id\": \"3922e1c5-e7c0-448f-b921-7e9eb228a208\",\n\t\t\"volatile.container.oci\": \"true\",\n\t\t\"volatile.eth0.host_name\": \"veth41e5cff1\",\n\t\t\"volatile.eth0.hwaddr\": \"10:66:6a:da:85:4d\",\n\t\t\"volatile.eth0.name\": \"eth0\",\n\t\t\"volatile.idmap.base\": \"0\",\n\t\t\"volatile.idmap.current\": \"[{\\\"Isuid\\\":true,\\\"Isgid\\\":false,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000},{\\\"Isuid\\\":false,\\\"Isgid\\\":true,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000}]\",\n\t\t\"volatile.idmap.next\": \"[{\\\"Isuid\\\":true,\\\"Isgid\\\":false,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000},{\\\"Isuid\\\":false,\\\"Isgid\\\":true,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000}]\",\n\t\t\"volatile.last_state.idmap\": \"[]\",\n\t\t\"volatile.last_state.power\": \"RUNNING\",\n\t\t\"volatile.uuid\": \"49cfff02-8061-4a8f-a0af-c435e17faa1d\",\n\t\t\"volatile.uuid.generation\": \"49cfff02-8061-4a8f-a0af-c435e17faa1d\"\n\t},\n\t\"created_at\": \"2026-10-04T02:32:02.221541993Z\",\n\t\"description\": \"\",\n\t\"devices\": {},\n\t\"ephemeral\": false,\n\t\"expanded_config\": {\n\t\t\"environment.HOME\": \"/root\",\n\t\t\"environment.PATH\": \"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\",\n\t\t\"environment.TERM\": \"xterm\",\n\t\t\"image.architecture\": \"aarch64\",\n\t\t\"image.description\": \"docker.io/library/alpine (OCI)\",\n\t\t\"image.id\": \"alpine:3.23\",\n\t\t\"image.type\": \"oci\",\n\t\t\"oci.cwd\": \"/\",\n\t\t\"oci.entrypoint\": \"sleep 3600\",\n\t\t\"oci.gid\": \"0\",\n\t\t\"oci.uid\": \"0\",\n\t\t\"volatile.base_image\": \"ceca93ee873fb842e329402f8654751492b1b9594eb39575480e68730052f2d1\",\n\t\t\"volatile.cloud-init.instance-id\": \"3922e1c5-e7c0-448f-b921-7e9eb228a208\",\n\t\t\"volatile.container.oci\": \"true\",\n\t\t\"volatile.eth0.host_name\": \"veth41e5cff1\",\n\t\t\"volatile.eth0.hwaddr\": \"10:66:6a:da:85:4d\",\n\t\t\"volatile.eth0.name\": \"eth0\",\n\t\t\"volatile.idmap.base\": \"0\",\n\t\t\"volatile.idmap.current\": \"[{\\\"Isuid\\\":true,\\\"Isgid\\\":false,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000},{\\\"Isuid\\\":false,\\\"Isgid\\\":true,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000}]\",\n\t\t\"volatile.idmap.next\": \"[{\\\"Isuid\\\":true,\\\"Isgid\\\":false,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000},{\\\"Isuid\\\":false,\\\"Isgid\\\":true,\\\"Hostid\\\":1000000,\\\"Nsid\\\":0,\\\"Maprange\\\":1000000000}]\",\n\t\t\"volatile.last_state.idmap\": \"[]\",\n\t\t\"volatile.last_state.power\": \"RUNNING\",\n\t\t\"volatile.uuid\": \"49cfff02-8061-4a8f-a0af-c435e17faa1d\",\n\t\t\"volatile.uuid.generation\": \"49cfff02-8061-4a8f-a0af-c435e17faa1d\"\n\t},\n\t\"expanded_devices\": {\n\t\t\"eth0\": {\n\t\t\t\"network\": \"incusbr0\",\n\t\t\t\"type\": \"nic\"\n\t\t},\n\t\t\"root\": {\n\t\t\t\"path\": \"/\",\n\t\t\t\"pool\": \"default\",\n\t\t\t\"type\": \"disk\"\n\t\t}\n\t},\n\t\"last_used_at\": \"2026-10-04T02:32:02.492353168Z\",\n\t\"location\": \"none\",\n\t\"name\": \"tama-test-0416755b72-oci\",\n\t\"profiles\": [\n\t\t\"default\"\n\t],\n\t\"project\": \"default\",\n\t\"stateful\": false,\n\t\"status\": \"Running\",\n\t\"status_code\": 103,\n\t\"type\": \"container\"\n}\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "image",
+        "export",
+        "ceca93ee873fb842e329402f8654751492b1b9594eb39575480e68730052f2d1",
+        "/Users/zacksiri/Development/_kritama/tama-incus-mac/.integration/a15/acceptance-client/tama-test-0416755b72/oci-cache-before-restart"
+      ],
+      "exit_code": 0,
+      "stdout": "\nImage exported successfully!\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-0416755b72",
+        "--",
+        "cat",
+        "/root/tama-persistence"
+      ],
+      "exit_code": 0,
+      "stdout": "95bc00c658c842ebbbb46f103300982e",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "query",
+        "/1.0/profiles/default"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n\t\"config\": {},\n\t\"description\": \"Default Incus profile\",\n\t\"devices\": {\n\t\t\"eth0\": {\n\t\t\t\"network\": \"incusbr0\",\n\t\t\t\"type\": \"nic\"\n\t\t},\n\t\t\"root\": {\n\t\t\t\"path\": \"/\",\n\t\t\t\"pool\": \"default\",\n\t\t\t\"type\": \"disk\"\n\t\t}\n\t},\n\t\"name\": \"default\",\n\t\"project\": \"default\",\n\t\"used_by\": [\n\t\t\"/1.0/instances/tama-test-0416755b72\",\n\t\t\"/1.0/instances/tama-test-0416755b72-oci\"\n\t]\n}\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "query",
+        "/1.0/storage-pools/default/resources"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n\t\"inodes\": {\n\t\t\"total\": 524288,\n\t\t\"used\": 16336\n\t},\n\t\"space\": {\n\t\t\"total\": 8350298112,\n\t\t\"used\": 627851264\n\t}\n}\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "query",
+        "/1.0/storage-pools/default/resources"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n\t\"inodes\": {\n\t\t\"total\": 589824,\n\t\t\"used\": 16337\n\t},\n\t\"space\": {\n\t\t\"total\": 9407197184,\n\t\t\"used\": 628387840\n\t}\n}\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-0416755b72",
+        "--",
+        "cat",
+        "/root/tama-persistence"
+      ],
+      "exit_code": 0,
+      "stdout": "95bc00c658c842ebbbb46f103300982e",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "launch",
+        "images:alpine/3.24",
+        "tama-test-0416755b72-shares",
+        "-c",
+        "security.privileged=true"
+      ],
+      "exit_code": 0,
+      "stdout": "Launching tama-test-0416755b72-shares\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "config",
+        "device",
+        "add",
+        "tama-test-0416755b72-shares",
+        "share-0",
+        "disk",
+        "source=/mnt/tama-shares/readonly",
+        "path=/mnt/tama-test-share-0",
+        "readonly=false"
+      ],
+      "exit_code": 0,
+      "stdout": "Device share-0 added to tama-test-0416755b72-shares\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-0416755b72-shares",
+        "--",
+        "cat",
+        "/mnt/tama-test-share-0/.tama-share-0fc6ac6a573a46e3a1d0d44b644ce16b"
+      ],
+      "exit_code": 0,
+      "stdout": "e10c2dc5f0a84c49b54bb86a7186a5ed",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-0416755b72-shares",
+        "--",
+        "sh",
+        "-c",
+        "if printf changed > /mnt/tama-test-share-0/.tama-share-0fc6ac6a573a46e3a1d0d44b644ce16b; then exit 1; fi; cat /mnt/tama-test-share-0/.tama-share-0fc6ac6a573a46e3a1d0d44b644ce16b"
+      ],
+      "exit_code": 0,
+      "stdout": "e10c2dc5f0a84c49b54bb86a7186a5ed",
+      "stderr": "sh: can't create /mnt/tama-test-share-0/.tama-share-0fc6ac6a573a46e3a1d0d44b644ce16b: Permission denied\n"
+    },
+    {
+      "arguments": [
+        "config",
+        "device",
+        "add",
+        "tama-test-0416755b72-shares",
+        "share-1",
+        "disk",
+        "source=/mnt/tama-shares/writable",
+        "path=/mnt/tama-test-share-1",
+        "readonly=false"
+      ],
+      "exit_code": 0,
+      "stdout": "Device share-1 added to tama-test-0416755b72-shares\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-0416755b72-shares",
+        "--",
+        "cat",
+        "/mnt/tama-test-share-1/.tama-share-1fd25838edef49e9b3f05a17ad17b250"
+      ],
+      "exit_code": 0,
+      "stdout": "ae1784995c6249bda10e7592a6bf5bd2",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-0416755b72-shares",
+        "--",
+        "sh",
+        "-c",
+        "printf d5db84e90f7c4a07a981f27d13a1a74a > /mnt/tama-test-share-1/.tama-share-1fd25838edef49e9b3f05a17ad17b250; cat /mnt/tama-test-share-1/.tama-share-1fd25838edef49e9b3f05a17ad17b250"
+      ],
+      "exit_code": 0,
+      "stdout": "d5db84e90f7c4a07a981f27d13a1a74a",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "launch",
+        "images:debian/13",
+        "tama-test-0416755b72-vm",
+        "--vm",
+        "-c",
+        "limits.cpu=2",
+        "-c",
+        "limits.memory=1GiB",
+        "-c",
+        "security.secureboot=false"
+      ],
+      "exit_code": 0,
+      "stdout": "Launching tama-test-0416755b72-vm\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-0416755b72-vm",
+        "--",
+        "uname",
+        "-m"
+      ],
+      "exit_code": 0,
+      "stdout": "aarch64\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "launch",
+        "tama-test-0416755b72-remote:alpine:3.23",
+        "tama-test-0416755b72-oci-reuse",
+        "-c",
+        "oci.entrypoint=sleep 3600"
+      ],
+      "exit_code": 0,
+      "stdout": "Launching tama-test-0416755b72-oci-reuse\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "exec",
+        "tama-test-0416755b72-oci-reuse",
+        "--",
+        "uname",
+        "-s"
+      ],
+      "exit_code": 0,
+      "stdout": "Linux\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "delete",
+        "tama-test-0416755b72",
+        "--force"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "delete",
+        "tama-test-0416755b72-oci",
+        "--force"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "delete",
+        "tama-test-0416755b72-oci-reuse",
+        "--force"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "delete",
+        "tama-test-0416755b72-vm",
+        "--force"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "delete",
+        "tama-test-0416755b72-shares",
+        "--force"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "remote",
+        "remove",
+        "tama-test-0416755b72-remote"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "oci_image": "docker.io/library/alpine:3.23",
+  "capabilities": {
+    "architecture": "arm64",
+    "capabilities": {
+      "nested_virtualization": true,
+      "oci": true,
+      "system_containers": true,
+      "virtiofs": true,
+      "vm": true
+    },
+    "incus": {
+      "available": true,
+      "version": "7.0.1"
+    },
+    "platform": "darwin",
+    "supported": true,
+    "virtualization": "apple-vz"
+  },
+  "server_environment": {
+    "addresses": [],
+    "architectures": [
+      "aarch64",
+      "armv6l",
+      "armv7l",
+      "armv8l"
+    ],
+    "certificate": "-----BEGIN CERTIFICATE-----\nMIICCTCCAY+gAwIBAgIQUIujzE9QLqJyogbxQ3nEfTAKBggqhkjOPQQDAzA1MRkw\nFwYDVQQKExBMaW51eCBDb250YWluZXJzMRgwFgYDVQQDDA9yb290QHRhbWEtaW5j\ndXMwHhcNMjYxMDA0MDIzMDMyWhcNMzYxMDAxMDIzMDMyWjA1MRkwFwYDVQQKExBM\naW51eCBDb250YWluZXJzMRgwFgYDVQQDDA9yb290QHRhbWEtaW5jdXMwdjAQBgcq\nhkjOPQIBBgUrgQQAIgNiAATRosdR8crr1ms8SNk2xmEgMAikWIX5fnDIeBquJWBF\nQq7kB2CZ2eUOfODvHJgnPY9F9vqh5CBxiEuqgw1LBGyy5bia2yw59rTsGPq2JbHt\nF1xSrDGdmZVZaXSeL4bf9LajZDBiMA4GA1UdDwEB/wQEAwIFoDATBgNVHSUEDDAK\nBggrBgEFBQcDATAMBgNVHRMBAf8EAjAAMC0GA1UdEQQmMCSCCnRhbWEtaW5jdXOH\nBH8AAAGHEAAAAAAAAAAAAAAAAAAAAAEwCgYIKoZIzj0EAwMDaAAwZQIxAKtxl2mJ\nwjUzI3DEF4u4sZ+uzl7MhLtH+5I9KZBn9zMi1Qbtx1GPxF0j5FpX2jS7VgIwRtJ3\n3kqcoYFMDwunsAHkOUuLVRbYPiO7P5aQBn3odHbS+mhQ7Dc5sGhfINe2LJCx\n-----END CERTIFICATE-----\n",
+    "certificate_fingerprint": "f9def32c3420974ca6f441f6d3e7937226a5b8f42c0977ae59e5fba4a33fff71",
+    "driver": "lxc | qemu",
+    "driver_version": "7.0.0 | 11.0.3",
+    "firewall": "nftables",
+    "kernel": "Linux",
+    "kernel_architecture": "aarch64",
+    "kernel_features": {},
+    "kernel_version": "6.18.52-0-lts",
+    "lxc_features": {},
+    "os_name": "Alpine Linux",
+    "os_version": "3.24.2",
+    "project": "default",
+    "server": "incus",
+    "server_clustered": false,
+    "server_event_mode": "full-mesh",
+    "server_name": "tama-incus",
+    "server_pid": 3331,
+    "server_version": "7.0.1",
+    "storage": "dir",
+    "storage_supported_drivers": [
+      {
+        "Name": "dir",
+        "Remote": false,
+        "Version": "1"
+      }
+    ],
+    "storage_version": "1"
+  },
+  "oci_fingerprint": "ceca93ee873fb842e329402f8654751492b1b9594eb39575480e68730052f2d1",
+  "status": "passed",
+  "finished_at": "2026-10-04T02:33:36.814244+00:00",
+  "fixture": {
+    "appliance_id": "alpine-3.24.2-incus-review-v1",
+    "host": "Apple M4 Max, macOS 27.0.1, Swift 6.4",
+    "incus_image_auto_update_interval": "0",
+    "initial_data_gib": 8,
+    "final_data_gib": 9,
+    "source_provenance": "alpine-image.json",
+    "implementation_scope": "PR review hardening"
+  }
+}

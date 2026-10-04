@@ -1,0 +1,16 @@
+#!/sbin/openrc-run
+description="Host-CID-only Incus vsock bridge"
+supervisor=supervise-daemon
+command=/usr/bin/python3
+command_args=/usr/local/libexec/tama-bridge.py
+respawn_delay=2
+respawn_max=5
+output_log=/var/log/tama-bridge.log
+error_log=/var/log/tama-bridge.log
+depend() {
+    need incusd tama-storage
+}
+start_pre() {
+    test ! -e /var/lib/incus/.tama-preseed-pending || return 1
+    /usr/sbin/incusd waitready --timeout 120
+}

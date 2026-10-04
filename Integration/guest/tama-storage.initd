@@ -1,0 +1,16 @@
+#!/sbin/openrc-run
+description="Mount persistent Incus storage before starting Incus"
+depend() {
+    need localmount
+    before incusd tama-bridge
+}
+start() {
+    ebegin "Preparing persistent Incus data and configured shares"
+    /usr/local/libexec/tama-storage.sh
+    eend $?
+}
+stop() {
+    ebegin "Unmounting persistent Incus data"
+    umount /var/lib/incus
+    eend $?
+}
