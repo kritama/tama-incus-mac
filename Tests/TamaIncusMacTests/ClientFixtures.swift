@@ -173,30 +173,17 @@ func timExecutable() throws -> URL {
   throw RuntimeError(.unavailable, "Build the tim executable before executable tests")
 }
 
-func runTim(_ arguments: [String], environment: [String: String] = [:]) throws -> CLIResult {
-  let process = Process()
-  process.executableURL = try timExecutable()
-  process.arguments = arguments
+func runTim(_ arguments: [String], environment: [String: String] = [:]) async throws -> CLIResult {
   var env = ProcessInfo.processInfo.environment
   env.removeValue(forKey: "TIM_STATE_DIR")
   for (key, value) in environment { env[key] = value }
-  process.environment = env
-  let output = Pipe()
-  let error = Pipe()
-  process.standardOutput = output
-  process.standardError = error
   let started = ContinuousClock.now
-  try process.run()
-  let deadline = Date().addingTimeInterval(20)
-  while process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
-  if process.isRunning {
-    process.terminate()
-    throw RuntimeError(.timeout, "tim did not exit")
-  }
+  let result = try await ProcessCommandRunner().run(
+    executable: timExecutable().path, arguments: arguments, environment: env, timeout: 20)
   return CLIResult(
-    status: process.terminationStatus,
-    stdout: String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self),
-    stderr: String(decoding: error.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self),
+    status: result.status,
+    stdout: String(decoding: result.stdout, as: UTF8.self),
+    stderr: String(decoding: result.stderr, as: UTF8.self),
     elapsed: started.duration(to: .now))
 }
 

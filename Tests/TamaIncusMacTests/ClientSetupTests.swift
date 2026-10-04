@@ -15,7 +15,7 @@ import Testing
     remotes: [
       "local": ["unix://"], "other": ["unix:/tmp/other.sock"],
     ])
-  let first = try runTim(
+  let first = try await runTim(
     ["--state-dir", runtime.directory, "--json", "--timeout", "5", "client", "setup"],
     environment: tools.environment())
   #expect(first.status == 0)
@@ -32,7 +32,7 @@ import Testing
   #expect(saved.remotes["other"] == ["unix:/tmp/other.sock"])
   #expect(try tools.commands().filter { $0.first == "install" }.count == 1)
 
-  let again = try runTim(
+  let again = try await runTim(
     [
       "--state-dir", runtime.directory, "--json", "--timeout", "5", "client", "setup",
       "--set-default",
@@ -62,7 +62,7 @@ import Testing
       "local": ["unix://"], "tama-mac": ["unix:/tmp/elsewhere.sock"],
     ])
   try tools.publishOnPath()
-  let conflict = try runTim(
+  let conflict = try await runTim(
     ["--state-dir", runtime.directory, "--json", "--timeout", "5", "client", "setup"],
     environment: tools.environment())
   #expect(conflict.status == 1)
@@ -81,7 +81,7 @@ import Testing
     mustJSON(200, statusObject(state: "stopped", incus: "/tmp/unused.sock"))
   }
   defer { stopped.stop() }
-  let blocked = try runTim(
+  let blocked = try await runTim(
     ["--state-dir", stopped.socket.directory.path, "--timeout", "5", "client", "setup"],
     environment: stoppedTools.environment())
   #expect(blocked.status == 1)
@@ -94,7 +94,7 @@ import Testing
   defer { runtime.socket.stop() }
   let missing = try ToolFixture()
   defer { missing.remove() }
-  let absent = try runTim(
+  let absent = try await runTim(
     ["--state-dir", runtime.directory, "--timeout", "5", "client", "setup"],
     environment: missing.environment(includeBrew: false))
   #expect(absent.status == 1)
@@ -105,7 +105,7 @@ import Testing
   defer { failing.remove() }
   try failing.writeBrew(mode: .fail)
   try failing.writeIncus(defaultRemote: "local", remotes: ["local": ["unix://"]])
-  let failed = try runTim(
+  let failed = try await runTim(
     ["--state-dir", runtime.directory, "--timeout", "5", "client", "setup"],
     environment: failing.environment())
   #expect(failed.status == 1)
@@ -120,7 +120,7 @@ import Testing
   defer { tools.remove() }
   try tools.writeBrew(mode: .sleep)
   let started = ContinuousClock.now
-  let result = try runTim(
+  let result = try await runTim(
     ["--state-dir", runtime.directory, "--json", "--timeout", "1", "client", "setup"],
     environment: tools.environment())
   #expect(result.status == 1)
@@ -144,7 +144,7 @@ import Testing
   try selected.writeIncus(defaultRemote: "local", remotes: ["local": ["unix://"]])
   var environment = selected.environment(includeBrew: false)
   environment["PATH"] = "\(decoy.bin.path):/usr/bin:/bin"
-  let result = try runTim(
+  let result = try await runTim(
     [
       "--state-dir", runtime.directory, "--json", "--timeout", "5", "client", "setup", "--incus",
       selected.incusPath, "--remote", "desk",
@@ -166,7 +166,7 @@ import Testing
   var environment = tools.environment(includeBrew: false)
   environment["PATH"] = "\(tools.bin.path):/usr/bin:/bin"
   environment["TIM_FIXTURE_DEFAULT_FAIL"] = "1"
-  let result = try runTim(
+  let result = try await runTim(
     ["--state-dir", runtime.directory, "--json", "--timeout", "5", "client", "setup"],
     environment: environment)
   #expect(result.status == 1)

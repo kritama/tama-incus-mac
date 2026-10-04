@@ -5,7 +5,7 @@ import Testing
 
 @Test func timHelpAndGrammarExitBeforeNetworking() async throws {
   for arguments in [[String](), ["--help"]] {
-    let result = try runTim(arguments)
+    let result = try await runTim(arguments)
     #expect(result.status == 0)
     #expect(result.stderr.isEmpty)
     for text in [
@@ -36,7 +36,7 @@ import Testing
     ["--json", "--json", "doctor"],
   ]
   for arguments in rejected {
-    let result = try runTim(arguments + ["--state-dir", server.socket.directory.path])
+    let result = try await runTim(arguments + ["--state-dir", server.socket.directory.path])
     #expect(result.status == 2)
     #expect(result.stdout.isEmpty)
   }
@@ -62,10 +62,10 @@ import Testing
     fromEnv.stop()
     fromFlag.stop()
   }
-  let envResult = try runTim(
+  let envResult = try await runTim(
     ["--json", "--timeout", "2", "runtime", "status"],
     environment: ["TIM_STATE_DIR": fromEnv.socket.directory.path])
-  let flagResult = try runTim(
+  let flagResult = try await runTim(
     [
       "--state-dir", fromFlag.socket.directory.path, "--json", "--timeout", "2", "runtime",
       "status",
@@ -76,12 +76,12 @@ import Testing
   #expect(try jsonValue(flagResult.stdout)["state"] as? String == "from-flag")
 
   let missing = URL(fileURLWithPath: "/tmp/tima\(UUID().uuidString.prefix(8))")
-  let absent = try runTim(["--state-dir", missing.path, "--json", "--timeout", "1", "doctor"])
+  let absent = try await runTim(["--state-dir", missing.path, "--json", "--timeout", "1", "doctor"])
   #expect(absent.status == 1)
   #expect(absent.stderr.contains("not_found") == false)
   #expect(try jsonValue(absent.stderr)["error"] != nil)
   #expect(!FileManager.default.fileExists(atPath: missing.path))
-  let start = try runTim(["--state-dir", missing.path, "--timeout", "1", "runtime", "start"])
+  let start = try await runTim(["--state-dir", missing.path, "--timeout", "1", "runtime", "start"])
   #expect(start.status == 1)
   #expect(!FileManager.default.fileExists(atPath: missing.path))
 
@@ -90,7 +90,7 @@ import Testing
   #expect(chmod(loose.path, 0o755) == 0)
   defer { try? FileManager.default.removeItem(at: loose) }
   let before = try FileManager.default.attributesOfItem(atPath: loose.path)
-  let untouched = try runTim(["--state-dir", loose.path, "doctor", "--timeout", "1"])
+  let untouched = try await runTim(["--state-dir", loose.path, "doctor", "--timeout", "1"])
   let after = try FileManager.default.attributesOfItem(atPath: loose.path)
   #expect(untouched.status == 1)
   #expect(before[.posixPermissions] as? NSNumber == after[.posixPermissions] as? NSNumber)
@@ -108,14 +108,14 @@ import Testing
   }
   defer { server.stop() }
   let directory = server.socket.directory.path
-  let status = try runTim([
+  let status = try await runTim([
     "--state-dir", directory, "--json", "--timeout", "2", "runtime", "status",
   ])
   #expect(status.status == 0)
   #expect(status.stderr.isEmpty)
   #expect(try jsonValue(status.stdout)["state"] as? String == "ready")
 
-  let conflict = try runTim([
+  let conflict = try await runTim([
     "--state-dir", directory, "--json", "--timeout", "2", "runtime", "start",
   ])
   #expect(conflict.status == 1)
@@ -123,9 +123,9 @@ import Testing
   let conflictError = try jsonValue(conflict.stderr)["error"] as? [String: Any]
   #expect(conflictError?["code"] as? String == "conflict")
 
-  let forced = try runTim(
+  let forced = try await runTim(
     ["--state-dir", directory, "runtime", "stop", "--force", "--timeout", "2"])
-  let plain = try runTim(["--state-dir", directory, "--timeout", "2", "runtime", "stop"])
+  let plain = try await runTim(["--state-dir", directory, "--timeout", "2", "runtime", "stop"])
   #expect(forced.status == 0 && plain.status == 0)
   let bodies = server.requests().filter { $0.path == "/v1/runtime/stop" }.map(\.body)
   #expect(bodies.contains(Data("{\"force\":true}".utf8)))
@@ -133,7 +133,7 @@ import Testing
 
   server.delay = 3
   let started = ContinuousClock.now
-  let timedOut = try runTim([
+  let timedOut = try await runTim([
     "--state-dir", directory, "--json", "--timeout", "1", "runtime", "status",
   ])
   #expect(timedOut.status == 1)
@@ -155,7 +155,7 @@ import Testing
   // The first runtime socket was removed with its directory. Use a new state directory.
   defer { stoppedRuntime.stop() }
   let stoppedDir = stoppedRuntime.socket.directory.path
-  let doctor = try runTim(["--state-dir", stoppedDir, "--json", "--timeout", "2", "doctor"])
+  let doctor = try await runTim(["--state-dir", stoppedDir, "--json", "--timeout", "2", "doctor"])
   #expect(doctor.status == 1)
   #expect(try jsonValue(doctor.stdout)["status"] != nil)
   #expect(doctor.stdout.contains("stopped"))
@@ -163,7 +163,7 @@ import Testing
     try (jsonValue(doctor.stderr)["error"] as? [String: Any])?["code"] as? String == "unavailable")
   #expect(doctor.stderr.contains("does not start"))
   #expect(stoppedRuntime.requests().allSatisfy { $0.method == "GET" })
-  let workload = try runTim(["--state-dir", stoppedDir, "list"])
+  let workload = try await runTim(["--state-dir", stoppedDir, "list"])
   #expect(workload.status == 2)
   #expect(workload.stderr.contains("standard incus client"))
   #expect(stoppedRuntime.requests().allSatisfy { $0.method == "GET" })

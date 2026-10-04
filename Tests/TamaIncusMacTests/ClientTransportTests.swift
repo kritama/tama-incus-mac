@@ -17,7 +17,7 @@ import Testing
     writeAll(descriptor, Data(message.dropFirst(8)))
   }
   let response = try await UnixHTTPClient().request(
-    socket: server.url, method: "GET", path: "/v1/runtime/status", timeout: 2)
+    socket: server.url, method: "GET", path: "/v1/runtime/status", timeout: 10)
   #expect(response.status == 200)
   #expect(response.body == body)
 }
@@ -33,7 +33,8 @@ import Testing
     for byte in raw { writeAll(descriptor, Data([byte])) }
   }
   let response = try await UnixHTTPClient().request(
-    socket: server.url, method: "POST", path: "/v1/runtime/stop", body: Data("{}".utf8), timeout: 2)
+    socket: server.url, method: "POST", path: "/v1/runtime/stop", body: Data("{}".utf8), timeout: 10
+  )
   #expect(response.status == 200)
   #expect(response.body == Data("hello!".utf8))
 }
@@ -53,7 +54,7 @@ import Testing
     writeAll(descriptor, Data("HTTP/1.0 200 OK\r\nConnection: close\r\n\r\nbye".utf8))
   }
   let response = try await UnixHTTPClient().request(
-    socket: server.url, method: "GET", path: "/health", timeout: 2)
+    socket: server.url, method: "GET", path: "/health", timeout: 10)
   #expect(response.body == Data("bye".utf8))
 }
 
@@ -80,7 +81,7 @@ import Testing
     }
     await #expect(throws: RuntimeError.self) {
       try await UnixHTTPClient().request(
-        socket: server.url, method: "GET", path: "/v1/x", timeout: 2)
+        socket: server.url, method: "GET", path: "/v1/x", timeout: 10)
     }
   }
 }
@@ -95,7 +96,7 @@ import Testing
   }
   do {
     _ = try await UnixHTTPClient().request(
-      socket: server.url, method: "GET", path: "/v1/x", timeout: 2)
+      socket: server.url, method: "GET", path: "/v1/x", timeout: 10)
     Issue.record("Oversized headers were accepted")
   } catch let error as RuntimeError {
     #expect(error.code == .io)

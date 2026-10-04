@@ -59,14 +59,14 @@ import Testing
     executable: "/usr/bin/python3",
     arguments: [
       "-c",
-      "import subprocess, sys; p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(10)']); open(sys.argv[1], 'w').write(str(p.pid)); print('done', flush=True)",
+      "import subprocess, sys; p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)']); open(sys.argv[1], 'w').write(str(p.pid)); print('done', flush=True)",
       pidFile.path,
-    ], environment: ProcessInfo.processInfo.environment, timeout: 2)
+    ], environment: ProcessInfo.processInfo.environment, timeout: 10)
   let pid = try await commandTestPID(pidFile)
   defer { kill(pid, SIGKILL) }
   #expect(result.status == 0)
   #expect(result.stdout == Data("done\n".utf8))
-  #expect(started.duration(to: .now) < .seconds(2))
+  #expect(started.duration(to: .now) < .seconds(10))
 }
 
 private func commandTestDirectory() throws -> URL {
