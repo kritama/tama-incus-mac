@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-04T11:16:46Z",
+  "scope": "Historical installed tim lifecycle and list/show evidence. list/show were removed from tim; this report does not establish the client-setup gate.",
+  "superseded_scope": "tim list/show and their filtering checks are superseded. Lifecycle results remain historical evidence for those runtime commands only.",
+  "state_dir": "<workspace>/.integration/a15",
+  "appliance": "<workspace>/.integration/alpine-a15",
+  "install_prefix": "<workspace>/.integration/tim-client-prefix",
+  "tim": "<workspace>/.integration/tim-client-prefix/bin/tim",
+  "daemon": "<workspace>/.integration/tim-client-prefix/bin/tama-incus-mac",
+  "incus_cli": "<workspace>/.integration/tools/incus/7.5.1/bin/incus",
+  "normal_state_touched": false,
+  "launchd_installed": false,
+  "disk_sizes_preserved": {
+    "data_raw_bytes": 9663676416,
+    "root_raw_bytes": 12884901888
+  },
+  "guest_stopped_and_daemon_exited": true,
+  "checks": {
+    "status_before_start_stopped": true,
+    "runtime_start_ready": true,
+    "doctor_ready": true,
+    "list_json": true,
+    "running_vm_filter": true,
+    "show_metadata_and_state": true,
+    "missing_instance_not_found": true,
+    "runtime_restart_ready": true,
+    "owned_success_fixtures_removed": true,
+    "runtime_stop": true,
+    "doctor_stopped_does_not_start": true,
+    "list_stopped_does_not_start": true
+  },
+  "installed_tim_results": [
+    {"command": ["runtime", "status", "--json"], "exit_code": 0, "state": "stopped"},
+    {"command": ["runtime", "start", "--json", "--timeout", "700"], "exit_code": 0, "state": "ready"},
+    {"command": ["doctor", "--json"], "exit_code": 0, "host_supported": true, "protocol_version": 1, "incus_version": "7.0.1"},
+    {"command": ["list", "--json"], "exit_code": 0, "included_owned_container_and_vm": true},
+    {"command": ["list", "--type", "virtual-machine", "--running"], "exit_code": 0, "only_running_virtual_machines": true, "excluded_owned_container_and_stopped_vm": true},
+    {"command": ["show", "<owned-container>", "--json"], "exit_code": 0, "metadata_and_state": true},
+    {"command": ["show", "--json", "<absent>"], "exit_code": 1, "error_code": "not_found"},
+    {"command": ["runtime", "restart", "--json", "--timeout", "700"], "exit_code": 0, "state": "ready"},
+    {"command": ["runtime", "stop"], "exit_code": 0, "state": "stopped"},
+    {"command": ["doctor", "--json"], "exit_code": 1, "error_code": "unavailable", "state_after": "stopped"},
+    {"command": ["list", "--json"], "exit_code": 1, "error_code": "unavailable", "state_after": "stopped"}
+  ],
+  "notes": [
+    "Fixtures were created only with the standard Incus CLI. tim did not wrap a VM CLI or mutate workloads.",
+    "The Alpine VM fixture required security.secureboot=false, matching the existing appliance boundary.",
+    "Earlier script iterations left owned instances in the stopped appliance. They are retained as failure evidence and were not deleted by a later boot.",
+    "Full command transcripts remain in ignored .integration/tim-client-acceptance.json."
+  ]
+}

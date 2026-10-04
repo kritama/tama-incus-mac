@@ -4,4 +4,6 @@ Use SwiftPM with strict Swift 6 concurrency and native swift-format. Keep the ex
 
 Canonical checks: Integration/scripts/check.sh and `openspec validate --all --strict --no-interactive`. Hardware acceptance is explicit and opt-in; use only isolated state directories. Preserve Incus data on failures. Use feature/ branches, exclude .integration/build artifacts from commits, and do not publish a formula with fake checksums.
 
+Development tools are pinned in `mise.toml`. From the repository root, run `mise trust` and `mise install node npm:@fission-ai/openspec` once. Use `mise exec -- openspec ...` for OpenSpec commands in agents or shells without activation; `mise run spec:validate` runs canonical strict validation. See [development setup](docs/development.md).
+
 Use Git Flow: `main` is released history, `develop` is integration, `feature/*` branches start from and merge into `develop`, `release/*` branches start from `develop` and finish into both `main` and `develop`, and `hotfix/*` branches start from `main` and finish into both long-lived branches. Publish development work on its feature branch. Do not treat incomplete hardware acceptance as a release or finish/merge branches without user authorization.

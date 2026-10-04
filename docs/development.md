@@ -2,6 +2,39 @@
 
 Requires Apple Silicon, macOS 15+, Xcode/Swift 6.4. `swift build`, `swift test`, release builds and `swift format` are the native development workflow; no Xcode project, SwiftLint, external web framework or VM runtime is required. Hardware acceptance is opt-in and separate from unit tests.
 
+## OpenSpec with mise
+
+Install [mise](https://mise.jdx.dev/getting-started.html), then run these commands from the repository root:
+
+```sh
+mise trust
+mise install node npm:@fission-ai/openspec
+mise exec -- openspec --version
+mise run spec:validate
+```
+
+`mise.toml` pins Node.js 26.10.0 and OpenSpec 1.14.0. OpenSpec is installed through mise's npm backend independently of any global npm installation. CI also pins OpenSpec 1.14.0.
+
+Use `mise exec -- openspec ...` for planning and implementation commands, including in agent sessions and shells without mise activation:
+
+```sh
+mise exec -- openspec list
+mise exec -- openspec status --change tim-client --json
+mise exec -- openspec instructions apply --change tim-client --json
+mise exec -- openspec validate --all --strict --no-interactive
+```
+
+The status and apply examples target the current `tim-client` change; substitute the active change name for later work.
+
+The canonical checks remain:
+
+```sh
+Integration/scripts/check.sh
+mise run spec:validate
+```
+
+Swift and native swift-format come from the selected Xcode toolchain. Hardware acceptance remains explicit and opt-in, uses isolated state directories, and is recorded separately from these checks.
+
 ## Build and sign
 
 ```sh
@@ -12,9 +45,22 @@ swift format format --in-place --recursive Package.swift Sources Tests
 swift format lint --strict --recursive Package.swift Sources Tests
 codesign --force --sign - --entitlements Packaging/virtualization.entitlements .build/debug/tama-incus-mac
 .build/debug/tama-incus-mac capabilities
+.build/debug/tim --help
 ```
 
-VZ requires `com.apple.security.virtualization` on the executable. Development signing is ad hoc. Production signing/notarization is a future release task. Apple APIs detect unsupported hardware/policy; nested support is never inferred from the model name.
+VZ requires `com.apple.security.virtualization` on the daemon executable. Development signing is ad hoc. Production signing/notarization is a future release task. Apple APIs detect unsupported hardware/policy; nested support is never inferred from the model name.
+
+## tim client
+
+`tim` is the thin local client built by this same SwiftPM package. It is not a separate product or repository. It controls the outer runtime and can configure the standard Incus CLI. Workload commands belong to `incus`, not `tim`. Invocation and transport limits are in [the CLI reference](cli.md).
+
+Local source installation requires Swift. It builds both release executables, ad-hoc signs and verifies them, then installs them together:
+
+```sh
+Packaging/install-local.sh --prefix /absolute/isolated/prefix
+```
+
+The daemon receives the virtualization entitlement; tim does not. The command does not create runtime state or install a launch agent. Ad-hoc development signatures are not notarized production artifacts. A future release package or formula must include both tools and real checksums; none is published here.
 
 ## Git Flow
 
