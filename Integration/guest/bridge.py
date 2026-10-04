@@ -4,11 +4,14 @@ import concurrent.futures
 import http.client
 import json
 import os
-import select
+import errno
+import time
+import traceback
 import socket
 import threading
 
 INCUS_SOCKET = '/var/lib/incus/unix.socket'
+relay_ready = threading.Event()
 
 
 def host_peer(peer):
@@ -77,6 +80,8 @@ def health(client):
         code, result = '404 Not Found', {'error': 'unknown health route'}
     else:
         try:
+            if not relay_ready.is_set():
+                raise RuntimeError('Incus relay listener is unavailable')
             result = incus_health()
             code = '200 OK'
         except (OSError, ValueError, KeyError, RuntimeError) as error:
@@ -85,10 +90,12 @@ def health(client):
     client.sendall(f'HTTP/1.1 {code}\r\nContent-Length: {len(body)}\r\nConnection: close\r\n\r\n'.encode() + body)
 
 
-def serve(port, handler):
+def serve(port, handler, ready=None):
     with socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM) as listener:
         listener.bind((socket.VMADDR_CID_ANY, port))
         listener.listen(128)
+        if ready is not None:
+            ready.set()
         slots = threading.BoundedSemaphore(128)
         def handle(client):
             try:
@@ -98,15 +105,45 @@ def serve(port, handler):
                 pass
             finally:
                 slots.release()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=128) as pool:
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=128)
+        try:
             while True:
-                client, peer = listener.accept()
+                try:
+                    client, peer = listener.accept()
+                except OSError as error:
+                    if error.errno == errno.EINTR:
+                        continue
+                    if error.errno in (errno.ECONNABORTED, errno.EMFILE, errno.ENFILE,
+                                       errno.ENOBUFS, errno.ENOMEM):
+                        time.sleep(0.1)
+                        continue
+                    raise
                 if not host_peer(peer) or not slots.acquire(blocking=False):
                     client.close()
                     continue
-                pool.submit(handle, client)
+                try:
+                    pool.submit(handle, client)
+                except BaseException:
+                    client.close()
+                    slots.release()
+                    raise
+        finally:
+            if ready is not None:
+                ready.clear()
+            # Do not await blocked stream workers before the supervisor can restart us.
+            pool.shutdown(wait=False, cancel_futures=True)
+
+
+def run_or_exit(port, handler, ready=None):
+    """Either listener failing invalidates the entire helper, including health."""
+    try:
+        serve(port, handler, ready)
+    except BaseException:
+        traceback.print_exc()
+    finally:
+        os._exit(1)
 
 
 if __name__ == '__main__':
-    threading.Thread(target=serve, args=(8443, relay), daemon=True).start()
-    serve(8444, health)
+    threading.Thread(target=run_or_exit, args=(8443, relay, relay_ready), daemon=True).start()
+    run_or_exit(8444, health)

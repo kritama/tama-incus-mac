@@ -59,3 +59,26 @@ All instances, images, snapshots, profiles, projects, networks, storage, remotes
 
 - **WHEN** tama-machine transfers an instance to another Incus host
 - **THEN** it uses standard Incus APIs and artifacts without runtime-specific workload metadata
+
+### Requirement: Relay availability
+
+Host relay I/O SHALL use bounded buffers and nonblocking readiness notifications so idle streams cannot exhaust workers needed for control requests or health probes. Fatal failure of either guest listener SHALL terminate the helper for supervisor restart; transient accept errors SHALL be retried. Guest health SHALL require the Incus relay listener to have started.
+
+#### Scenario: Idle streams
+
+- **WHEN** many Incus streams remain idle or apply backpressure
+- **THEN** control requests and health probes still complete, and duplex half-close remains supported
+
+#### Scenario: Listener failure
+
+- **WHEN** a guest listener fails permanently while another has active clients
+- **THEN** the helper exits promptly and cannot continue advertising healthy transport
+
+### Requirement: Complete configuration JSON
+
+Create and replacement configuration requests SHALL include all nonoptional configuration fields. Swift initializer and generated template defaults SHALL NOT imply omitted-field defaults in JSON. The optional seed path MAY be omitted and share read_only SHALL default to true.
+
+#### Scenario: Missing required fields
+
+- **WHEN** a create body provides only an appliance manifest path
+- **THEN** the service rejects the incomplete configuration with HTTP 400

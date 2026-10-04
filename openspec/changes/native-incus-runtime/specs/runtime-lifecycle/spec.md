@@ -64,3 +64,21 @@ Delete SHALL require an explicit confirmation payload and a stopped outer VM. It
 
 - **WHEN** delete is requested while the VM is running
 - **THEN** HTTP 409 is returned and Incus data is preserved
+
+### Requirement: Live idempotent start
+
+A repeated start SHALL validate running state and guest health within its mutation gate before returning ready. An exited guest SHALL be started again; a running unhealthy guest SHALL revoke readiness and require explicit stop before recovery.
+
+#### Scenario: Exit without status polling
+
+- **WHEN** a previously ready guest exits and start is requested before another status poll
+- **THEN** cached readiness is revoked and a new boot is attempted
+
+### Requirement: Interrupted confirmed reset
+
+The service SHALL durably record explicit reset intent before deleting owned files. On restart it SHALL complete an interrupted confirmed reset before loading configuration. Invalid intent or incomplete state without confirmed intent SHALL preserve data and fail safely.
+
+#### Scenario: Reset interruption
+
+- **WHEN** the daemon restarts after confirmed deletion removed disks but left configuration
+- **THEN** it completes only the confirmed service-owned cleanup and reports absent

@@ -4,7 +4,7 @@ Host validation: 2026-10-03 UTC (2026-10-04 Asia/Bangkok). Apple M4 Max, 64 GiB,
 
 ## Native checks and CI
 
-Debug/release builds with warnings-as-errors, 19 Swift Testing tests, strict Swift formatting, guest shell/Python syntax and strict OpenSpec validation passed locally. Tests cover lifecycle concurrency/cancellation, failure retention, configuration/path/manifest safety, HTTP framing and binary duplex/half-close behavior.
+Debug/release builds with warnings-as-errors, 26 Swift Testing tests plus four guest-helper tests, strict Swift formatting, guest shell/Python syntax and strict OpenSpec validation passed locally. Tests cover lifecycle concurrency/cancellation, failure retention, configuration/path/manifest safety, HTTP framing and binary duplex/half-close behavior.
 
 GitHub Actions runs these checks on the macOS ARM64 `xcode-27` runner with pinned checkout/setup-node actions and OpenSpec 1.14.0. [The Alpine implementation workflow run passed](https://github.com/kritama/tama-incus-mac/actions/runs/37146208220). CI does not boot VZ or establish hardware acceptance; final PR-head checks are recorded on GitHub.
 
@@ -28,6 +28,14 @@ Earlier runs exposed missing OCI cached files after restart while the image meta
 
 CodeRabbit completed five reviews during this Alpine acceptance work. Its minor DHCP configuration idempotency finding was corrected; four subsequent reviews completed with zero findings. The last review covered the final VZ cleanup and explicit-image-update changes. Earlier native implementation findings were also addressed. Checks affected by the final Swift change were rerun successfully.
 
-All 17 tasks in the active OpenSpec checklist are complete. This records the supported initial implementation and acceptance fixture. Production signed/notarized distribution, a published appliance, Homebrew formula, automatic image/root upgrades, forwarding and custom DNS remain outside this initial implementation. No image, runtime disk, downloaded executable or client credential is committed.
+All 23 implementation/acceptance tasks in the active OpenSpec checklist are complete. PR publication, head CI and review-thread resolution are tracked on GitHub. This records the supported initial implementation and acceptance fixture. Production signed/notarized distribution, a published appliance, Homebrew formula, automatic image/root upgrades, forwarding and custom DNS remain outside this initial implementation. No image, runtime disk, downloaded executable or client credential is committed.
 
 The standard native Incus CLI used for acceptance is 7.5.1 from the verified official Homebrew ARM64 bottle, SHA-256 `864f707022778302ef3be6f11746f7aea15e659613c768ed63ab56f349eff2da`.
+
+## PR review verification — 2026-10-04 UTC
+
+The review fixes revalidate cached readiness inside start, replace blocking host relay pumps with bounded nonblocking Dispatch sources, supervise both guest listeners as one process and persist confirmed reset intent across daemon restart. The complete JSON configuration contract is explicit: initializer/template defaults do not imply omitted required fields. Regression tests verify incomplete JSON returns 400, custom values survive decoding, dead/unhealthy guests are not returned as ready, reset interruptions before/after configuration removal recover, invalid intent preserves data, and fatal listener failure exits even with a blocked worker.
+
+The updated signed native process and newly provisioned Alpine appliance `alpine-3.24.2-incus-review-v1` passed [all 17 hardware checks](testing/pr-review-hardware-acceptance.json). The [idle-stream regression](testing/pr-review-relay-stress.json) held 80 real Incus connections open; all 60 control/health/Incus probes succeeded, with a maximum response time under 7 ms on this fixture. Swift regressions also verify 2 MB bidirectional transfers with forced backpressure, half-close and cancellation. These timings describe this local fixture, not a production performance guarantee.
+
+CodeRabbit CLI completed an uncommitted review of the 16 implementation/planning/test files with zero findings. The standalone hardware stress runner was added afterward and separately passed syntax and real-hardware validation. The GitHub PR review remains the record for the published commit. The docstring coverage warning in the original PR review analyzed zero supported files (29 were unsupported); it does not establish Swift documentation coverage. API and recovery contracts are maintained in the project documentation.

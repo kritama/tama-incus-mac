@@ -146,8 +146,24 @@ public actor RuntimeService {
   }
   private func startLocked() async throws -> RuntimeStatus {
     let value = try config()
-    await refresh()
-    if state == .ready { return snapshot() }
+    // This operation owns the mutation gate, so refresh() intentionally cannot run here.
+    if state == .ready {
+      if await driver.isRunning() {
+        if let live = try? await driver.health(), live.protocolVersion == 1 {
+          try Task.checkCancellation()
+          guestHealth = live
+          return snapshot()
+        }
+        state = .failed
+        guestHealth = nil
+        lastError = "Guest health unavailable; stop/start to recover"
+      } else {
+        state = .failed
+        guestHealth = nil
+        startedAt = nil
+        lastError = "Guest exited unexpectedly"
+      }
+    }
     guard !(await driver.isRunning()) else {
       throw RuntimeError(.conflict, "VM is running but unhealthy; stop before recovery")
     }

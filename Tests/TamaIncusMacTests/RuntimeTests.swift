@@ -276,3 +276,89 @@ struct Fixture {
   #expect(try reader.read(upToCount: 4) == Data("kept".utf8))
   #expect(try store.load() == fixture.configuration)
 }
+
+@Test func startRevalidatesDeadGuestWithoutStatusPolling() async throws {
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  let driver = FakeVM()
+  let service = try RuntimeService(driver: driver, store: StateStore(paths: fixture.paths))
+  _ = try await service.start()
+  await driver.setRunning(false)
+  #expect(try await service.start().state == .ready)
+  #expect(await driver.startCount == 2)
+}
+
+@Test func repeatedStartRevokesUnhealthyRunningGuest() async throws {
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  let driver = FakeVM()
+  let service = try RuntimeService(driver: driver, store: StateStore(paths: fixture.paths))
+  _ = try await service.start()
+  await driver.setHealthy(false)
+  await #expect(
+    throws: RuntimeError(.conflict, "VM is running but unhealthy; stop before recovery")
+  ) {
+    try await service.start()
+  }
+  #expect(await service.status().state == .failed)
+  #expect(!(await service.capabilities().incus.available))
+  #expect(await driver.startCount == 1)
+  #expect(await driver.running)
+}
+
+@Test func configurationJSONRequiresCompleteNonoptionalFields() async throws {
+  let minimal = Data(#"{"appliance_manifest_path":"/tmp/manifest.json"}"#.utf8)
+  #expect(throws: DecodingError.self) {
+    try JSON.decoder().decode(RuntimeConfiguration.self, from: minimal)
+  }
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  let service = try RuntimeService(driver: FakeVM(), store: StateStore(paths: fixture.paths))
+  let routes = RuntimeRoutes(service: service)
+  let response = await routes.handle(
+    HTTPRequest(method: "POST", path: "/v1/runtime/create", body: minimal))
+  #expect(response.status == 400)
+  var custom = fixture.configuration
+  custom.cpuCount = 7
+  custom.memoryMib = 8192
+  custom.nestedVirtualization = false
+  custom.seedPath = nil
+  #expect(
+    try JSON.decoder().decode(RuntimeConfiguration.self, from: JSON.encoder().encode(custom))
+      == custom)
+}
+
+@Test(arguments: [false, true]) func interruptedConfirmedResetCompletesBeforeLoadingConfiguration(
+  configurationRemoved: Bool
+) throws {
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  let store = StateStore(paths: fixture.paths)
+  try Data("external image".utf8).write(
+    to: URL(fileURLWithPath: fixture.configuration.applianceManifestPath))
+  try Data("diagnostics".utf8).write(to: fixture.paths.serialLog)
+  try store.beginReset()
+  try FileManager.default.removeItem(at: fixture.paths.runtimeDirectory)
+  if configurationRemoved { try FileManager.default.removeItem(at: fixture.paths.config) }
+  #expect(try store.load() == nil)
+  #expect(!FileManager.default.fileExists(atPath: fixture.paths.config.path))
+  #expect(!FileManager.default.fileExists(atPath: fixture.paths.resetIntent.path))
+  #expect(FileManager.default.fileExists(atPath: fixture.configuration.applianceManifestPath))
+  #expect(FileManager.default.fileExists(atPath: fixture.paths.serialLog.path))
+  #expect(try store.load() == nil)
+}
+
+@Test func invalidResetIntentAndUnconfirmedIncompleteStatePreserveData() throws {
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  let store = StateStore(paths: fixture.paths)
+  try Data("unconfirmed".utf8).write(to: fixture.paths.resetIntent)
+  #expect(throws: RuntimeError.self) { try store.load() }
+  #expect(throws: RuntimeError.self) { try store.delete() }
+  #expect(FileManager.default.fileExists(atPath: fixture.paths.dataDisk.path))
+  try FileManager.default.removeItem(at: fixture.paths.resetIntent)
+  try FileManager.default.removeItem(at: fixture.paths.rootDisk)
+  #expect(throws: RuntimeError.self) { try store.load() }
+  #expect(FileManager.default.fileExists(atPath: fixture.paths.config.path))
+  #expect(FileManager.default.fileExists(atPath: fixture.paths.dataDisk.path))
+}

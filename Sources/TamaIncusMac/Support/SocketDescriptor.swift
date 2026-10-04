@@ -15,6 +15,12 @@ public final class SocketDescriptor: @unchecked Sendable {
     if flags >= 0 { _ = fcntl(descriptor, F_SETFL, flags & ~O_NONBLOCK) }
   }
   deinit { Darwin.close(rawValue) }
+  func setNonblocking() throws {
+    let flags = fcntl(rawValue, F_GETFL)
+    guard flags >= 0, fcntl(rawValue, F_SETFL, flags | O_NONBLOCK) == 0 else {
+      throw RuntimeError(.io, "Cannot enable nonblocking relay I/O")
+    }
+  }
   public func shutdown() { _ = Darwin.shutdown(rawValue, SHUT_RDWR) }
   public func shutdownWrite() { _ = Darwin.shutdown(rawValue, SHUT_WR) }
   public func timeout(seconds: Int) {
@@ -44,34 +50,6 @@ public final class SocketDescriptor: @unchecked Sendable {
         offset += count
       }
     }
-  }
-}
-
-public enum SocketRelay {
-  public static func relay(_ first: SocketDescriptor, _ second: SocketDescriptor) async {
-    await withTaskGroup(of: Void.self) { group in
-      for (input, output) in [(first, second), (second, first)] {
-        group.addTask {
-          try? await SocketIO.run {
-            do {
-              while true {
-                let chunk = try input.read()
-                if chunk.isEmpty {
-                  output.shutdownWrite()
-                  break
-                }
-                try output.write(chunk)
-              }
-            } catch {
-              first.shutdown()
-              second.shutdown()
-            }
-          }
-        }
-      }
-    }
-    first.shutdown()
-    second.shutdown()
   }
 }
 

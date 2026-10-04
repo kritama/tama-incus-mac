@@ -31,3 +31,14 @@
 - [x] 5.4 Boot nested Incus VM when supported or record explicit unsupported host skip; verify live guest agent command execution.
 - [x] 5.5 Complete available CodeRabbit review and resolve actionable findings, rerun affected checks; retain review evidence and report any unavailable review honestly.
 - [x] 5.6 Extend hardware acceptance to exercise explicitly configured read-only and writable VirtioFS shares through standard Incus disk devices; prove host/container reads, read-only rejection and write propagation with recorded evidence.
+
+## 6. PR review hardening
+
+- [x] 6.1 Clarify complete JSON configuration requirements and test omitted fields and exact custom values.
+- [x] 6.2 Revalidate cached readiness inside start's mutation gate; test dead and unhealthy guests without prior status polling.
+- [x] 6.3 Supervise both guest listeners as one process, retry transient accept failures and test fatal failure with active streams.
+- [x] 6.4 Replace blocking host relay pumps with bounded nonblocking I/O; test backpressure, half-close, cancellation and independent control progress with many idle streams.
+- [x] 6.5 Persist confirmed reset intent and complete interrupted cleanup on restart; test recovery and invalid intent without deleting unconfirmed data.
+- [x] 6.6 Run canonical checks, strict validation and fresh isolated hardware acceptance; complete available CodeRabbit review and record verification evidence.
+
+PR publication, head CI and review-thread resolution are tracked on GitHub separately from implementation task completion.

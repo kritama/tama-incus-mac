@@ -5,6 +5,10 @@ public struct StateStore: Sendable {
   public let paths: RuntimePaths
   public init(paths: RuntimePaths) { self.paths = paths }
   public func load() throws -> RuntimeConfiguration? {
+    if try resetIsPending() {
+      try finishReset()
+      return nil
+    }
     guard FileManager.default.fileExists(atPath: paths.config.path) else { return nil }
     try requireRegularFile(paths.config)
     let value = try JSON.decoder().decode(
@@ -41,13 +45,51 @@ public struct StateStore: Sendable {
       throw RuntimeError(.io, "Disk growth failed")
     }
   }
+  private static let confirmedReset = Data("tama-incus-mac confirmed reset v1\n".utf8)
+
+  /// Called only after the service verifies explicit confirmation and a stopped VM.
+  /// Publish durable intent before touching disks, so a crash cannot strand configuration.
+  func beginReset() throws {
+    if try resetIsPending() { return }
+    try Self.confirmedReset.write(to: paths.resetIntent, options: .atomic)
+    guard chmod(paths.resetIntent.path, 0o600) == 0 else {
+      throw RuntimeError(.io, "Cannot secure reset intent")
+    }
+    try syncFile(paths.resetIntent)
+    try syncFile(paths.directory)
+  }
+  private func resetIsPending() throws -> Bool {
+    var info = stat()
+    if lstat(paths.resetIntent.path, &info) != 0 {
+      guard errno == ENOENT else { throw RuntimeError(.io, "Cannot inspect reset intent") }
+      return false
+    }
+    guard info.st_mode & S_IFMT == S_IFREG, info.st_uid == getuid(),
+      info.st_size == Self.confirmedReset.count,
+      try Data(contentsOf: paths.resetIntent) == Self.confirmedReset
+    else { throw RuntimeError(.invalidConfiguration, "Invalid reset intent; preserve data") }
+    return true
+  }
+  private func syncFile(_ url: URL) throws {
+    let descriptor = open(url.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+    guard descriptor >= 0 else { throw RuntimeError(.io, "Cannot open reset state for sync") }
+    defer { close(descriptor) }
+    guard fsync(descriptor) == 0 else { throw RuntimeError(.io, "Cannot sync reset state") }
+  }
   public func delete() throws {
+    try beginReset()
+    try finishReset()
+  }
+  private func finishReset() throws {
     if FileManager.default.fileExists(atPath: paths.runtimeDirectory.path) {
       try FileManager.default.removeItem(at: paths.runtimeDirectory)
     }
     if FileManager.default.fileExists(atPath: paths.config.path) {
       try FileManager.default.removeItem(at: paths.config)
     }
+    try syncFile(paths.directory)
+    try FileManager.default.removeItem(at: paths.resetIntent)
+    try syncFile(paths.directory)
   }
 }
 

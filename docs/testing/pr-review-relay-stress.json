@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "tested_at": "2026-10-04T02:31:44.918617+00:00",
+  "idle_incus_streams": 80,
+  "successful_control_health_and_incus_requests": 60,
+  "maximum_response_seconds": 0.006685082989861257,
+  "median_response_seconds": 0.0012162915008957498,
+  "fixture": "alpine-3.24.2-incus-review-v1"
+}

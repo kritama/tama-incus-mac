@@ -4,6 +4,7 @@ import Foundation
 public struct RuntimePaths: Sendable {
   public let directory: URL
   public init(directory: URL) { self.directory = directory.standardizedFileURL }
+  public var resetIntent: URL { directory.appendingPathComponent("reset.pending") }
   public var config: URL { directory.appendingPathComponent("config.json") }
   public var runtimeDirectory: URL {
     directory.appendingPathComponent("runtime", isDirectory: true)
