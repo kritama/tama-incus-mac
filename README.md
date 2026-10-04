@@ -23,8 +23,8 @@ The service exposes `~/.tama/incus-mac/runtime.sock` for outer VM lifecycle and 
 - [Runtime API and tama-machine contract](docs/api.md)
 - [Architecture and scope](docs/architecture.md)
 - [Per-user launchd packaging](Packaging/README.md)
-- [OpenSpec design and decisions](openspec/changes/native-incus-runtime/design.md)
-- [Implementation and acceptance checklist](openspec/changes/native-incus-runtime/tasks.md)
+- [OpenSpec design and decisions](openspec/changes/archive/2026-10-04-native-incus-runtime/design.md)
+- [Implementation and acceptance checklist](openspec/changes/archive/2026-10-04-native-incus-runtime/tasks.md)
 - [Git Flow development workflow](docs/development.md#git-flow)
 
 Unit tests and hardware acceptance are separate. Automatic appliance downloads/upgrades, production signed/notarized releases, service forwarding and custom DNS are future work. Appliance preparation verifies the official Alpine raw archive and creates a NoCloud seed; initial provisioning requires internet access.
