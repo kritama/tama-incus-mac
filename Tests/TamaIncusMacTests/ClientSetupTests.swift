@@ -131,6 +131,7 @@ import Testing
   let pid = try #require(pid_t(pidLine.dropFirst("brew-pid:".count)))
   #expect(kill(pid, 0) == -1)
   #expect(errno == ESRCH)
+  #expect(try tools.commands().contains(["install", "incus"]))
 }
 
 @Test func explicitIncusOverrideSkipsPathAndHomebrew() async throws {
@@ -254,11 +255,14 @@ private struct ToolFixture {
         """
     case .sleep:
       script = """
-        #!/usr/bin/python3
-        import os, time
-        open(os.environ["TIM_FIXTURE_LOG"], "a").write("brew-pid:" + str(os.getpid()) + "\\n")
-        time.sleep(5)
-        open(os.environ["TIM_FIXTURE_LOG"], "a").write("brew-done\\n")
+        #!/bin/sh
+        printf '%s\\n' "$*" >> "$TIM_FIXTURE_LOG"
+        if [ "$1" = "--prefix" ]; then
+          printf '%s\\n' "$TIM_FIXTURE_PREFIX"
+          exit 0
+        fi
+        printf 'brew-pid:%s\\n' "$$" >> "$TIM_FIXTURE_LOG"
+        exec /bin/sleep 5
         """
     }
     try writeExecutable(bin.appendingPathComponent("brew"), script)
