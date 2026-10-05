@@ -42,5 +42,22 @@
     "swift_tests": 50,
     "guest_python_tests": 4,
     "strict_openspec_items": 6
+  },
+  "review_followup": {
+    "recorded_at": "2026-10-05T06:55:44.143760+00:00",
+    "default_before": "local",
+    "default_after": "local",
+    "checks": {
+      "registered": true,
+      "incus_list": true,
+      "default_unchanged": true,
+      "idempotent": true
+    },
+    "success": true,
+    "brew_install_ran": false,
+    "lifecycle_gate": false,
+    "swift_tests": 50,
+    "python_tests": 7,
+    "strict_openspec_items": 6
   }
 }

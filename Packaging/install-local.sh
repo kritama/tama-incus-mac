@@ -25,6 +25,22 @@ if [ -L "$prefix" ]; then
   exit 1
 fi
 
+validate_destinations() {
+  if [ -L "$prefix/bin" ] ||
+     [ -L "$prefix/bin/tama-incus-mac" ] ||
+     [ -L "$prefix/bin/tim" ]; then
+    echo "Refusing to install through symlink destinations" >&2
+    exit 1
+  fi
+  for destination in "$prefix/bin/tama-incus-mac" "$prefix/bin/tim"; do
+    if [ -e "$destination" ] && [ ! -f "$destination" ]; then
+      echo "Refusing a non-file executable destination" >&2
+      exit 1
+    fi
+  done
+}
+validate_destinations
+
 root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 cd "$root"
 swift build -c release -Xswiftc -warnings-as-errors
@@ -62,6 +78,7 @@ case "$client_entitlements" in
 esac
 
 mkdir -p "$prefix/bin"
+validate_destinations
 cp "$stage/tama-incus-mac" "$prefix/bin/tama-incus-mac"
 cp "$stage/tim" "$prefix/bin/tim"
 chmod 755 "$prefix/bin/tama-incus-mac" "$prefix/bin/tim"

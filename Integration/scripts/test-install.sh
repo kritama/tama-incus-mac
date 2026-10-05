@@ -20,6 +20,51 @@ if sh Packaging/install-local.sh --prefix relative >"$prefix/relative-prefix.err
   exit 1
 fi
 
+# A redirected destination must be refused before either executable is copied.
+# Test each executable separately and compare the existing sibling as well.
+for kind in bin daemon client dangling; do
+  unsafe="$prefix/unsafe-$kind"
+  outside="$sentinel/outside-$kind"
+  mkdir -p "$unsafe" "$outside"
+  printf 'outside daemon\n' > "$outside/tama-incus-mac"
+  printf 'outside client\n' > "$outside/tim"
+  if [ "$kind" = bin ]; then
+    ln -s "$outside" "$unsafe/bin"
+  else
+    mkdir "$unsafe/bin"
+    printf 'existing daemon\n' > "$unsafe/bin/tama-incus-mac"
+    printf 'existing client\n' > "$unsafe/bin/tim"
+    case "$kind" in
+      daemon)
+        rm "$unsafe/bin/tama-incus-mac"
+        ln -s "$outside/tama-incus-mac" "$unsafe/bin/tama-incus-mac"
+        ;;
+      client)
+        rm "$unsafe/bin/tim"
+        ln -s "$outside/tim" "$unsafe/bin/tim"
+        ;;
+      dangling)
+        rm "$unsafe/bin/tim"
+        ln -s "$outside/missing" "$unsafe/bin/tim"
+        ;;
+    esac
+  fi
+  if sh Packaging/install-local.sh --prefix "$unsafe" >"$prefix/refused-$kind.err" 2>&1; then
+    echo "symlink destination $kind was accepted" >&2
+    exit 1
+  fi
+  grep -q 'Refusing to install through symlink destinations' "$prefix/refused-$kind.err"
+  test "$(cat "$outside/tama-incus-mac")" = 'outside daemon'
+  test "$(cat "$outside/tim")" = 'outside client'
+  if [ "$kind" = client ] || [ "$kind" = dangling ]; then
+    test "$(cat "$unsafe/bin/tama-incus-mac")" = 'existing daemon'
+  fi
+  if [ "$kind" = daemon ]; then
+    test "$(cat "$unsafe/bin/tim")" = 'existing client'
+  fi
+  test ! -e "$outside/missing"
+done
+
 sh Packaging/install-local.sh --prefix "$prefix"
 test -x "$prefix/bin/tama-incus-mac"
 test -x "$prefix/bin/tim"

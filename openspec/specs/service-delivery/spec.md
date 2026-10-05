@@ -8,7 +8,7 @@ Delivers a headless per-user service with safe local permissions and independent
 
 ### Requirement: SwiftPM delivery
 
-The project SHALL build and test with SwiftPM and strict Swift 6 concurrency, with one library and a minimal executable. Debug/release builds, formatting and warnings-as-errors SHALL be canonical commands.
+The project SHALL build and test with SwiftPM and strict Swift 6 concurrency, with one library, a minimal tama-incus-mac daemon and a minimal tim client executable in the same package. Debug/release builds, formatting and warnings-as-errors SHALL be canonical commands.
 
 #### Scenario: Clean toolchain build
 

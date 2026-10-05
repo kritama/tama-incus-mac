@@ -63,6 +63,11 @@ def run(tool, args_list, timeout=60):
 
 
 try:
+    before = run(incus, ["remote", "get-default"])
+    if before.returncode or not before.stdout.strip():
+        raise RuntimeError(before.stderr or "Cannot read the default remote before setup")
+    original_default = before.stdout.strip()
+    report["default_before"] = original_default
     setup = run(tim, [
         "--state-dir", str(state), "--incus", str(incus), "--json", "--timeout", "30",
         "client", "setup", "--remote", args.remote,
@@ -81,7 +86,8 @@ try:
     default = run(incus, ["remote", "get-default"])
     if default.returncode:
         raise RuntimeError(default.stderr or "incus remote get-default failed")
-    unchanged = default.stdout.strip() != args.remote
+    report["default_after"] = default.stdout.strip()
+    unchanged = default.stdout.strip() == original_default
     report["checks"]["default_unchanged"] = unchanged
     if not unchanged:
         raise RuntimeError("setup changed the default remote without --set-default")
