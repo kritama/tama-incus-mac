@@ -1,6 +1,6 @@
 # Local API contract
 
-The daemon serves two owner-only Unix sockets in its state directory, default `~/.tama/incus-mac`. `runtime.sock` controls the outer VM. `incus.sock` carries unmodified Incus HTTP, WebSockets, exec, events and streaming operations. Possession of either socket grants privileged control of the Linux appliance; run clients as the same macOS user. No TCP listener or SSH is used.
+The bundled `tim` client calls the control socket and can register `incus.sock` with the standard Incus CLI. See [the CLI reference](cli.md). It does not add daemon routes or implement workload operations. The daemon serves two owner-only Unix sockets in its state directory, default `~/.tama/incus-mac`. `runtime.sock` controls the outer VM. `incus.sock` carries unmodified Incus HTTP, WebSockets, exec, events and streaming operations. Possession of either socket grants privileged control of the Linux appliance; run clients as the same macOS user. No TCP listener or SSH is used.
 
 ## Runtime API v1
 

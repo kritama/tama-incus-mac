@@ -7,11 +7,13 @@ let package = Package(
   products: [
     .library(name: "TamaIncusMac", targets: ["TamaIncusMac"]),
     .executable(name: "tama-incus-mac", targets: ["tama-incus-mac"]),
+    .executable(name: "tim", targets: ["tim"]),
   ],
   targets: [
     .target(name: "TamaIncusMac"),
     .executableTarget(name: "tama-incus-mac", dependencies: ["TamaIncusMac"]),
-    .testTarget(name: "TamaIncusMacTests", dependencies: ["TamaIncusMac"]),
+    .executableTarget(name: "tim", dependencies: ["TamaIncusMac"]),
+    .testTarget(name: "TamaIncusMacTests", dependencies: ["TamaIncusMac", "tim"]),
   ],
   swiftLanguageModes: [.v6]
 )

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-04T12:13:22Z",
+  "scope": "Installed tim client setup against a ready isolated appliance socket. This is not a new lifecycle hardware gate.",
+  "brew_install_ran": false,
+  "installer_evidence": "Fixture brew/incus processes in Swift tests proved install, discovery, failure, timeout, conflict and default preservation. No host Homebrew install ran.",
+  "incus": "<workspace>/.integration/tools/incus/7.5.1/bin/incus",
+  "tim": "<workspace>/.integration/tim-setup-prefix/bin/tim",
+  "state_dir": "<workspace>/.integration/a15",
+  "incus_conf": "fresh temporary directory, not the user configuration",
+  "checks": {
+    "registered": true,
+    "incus_list": true,
+    "default_unchanged": true,
+    "idempotent": true
+  },
+  "result": {
+    "remote": "tama-mac",
+    "connected": true,
+    "default": false,
+    "installed": false
+  },
+  "notes": [
+    "The in-use appliance and .integration/tim-client-prefix were not stopped, restarted, reconfigured or replaced.",
+    "incus list tama-mac: exited 0 through the standard client.",
+    "The default remote remained local.",
+    "Prior lifecycle and list/show hardware reports remain historical and do not establish this gate."
+  ],
+  "pr_verification": {
+    "recorded_at": "2026-10-04T12:25:43.427654+00:00",
+    "tim": "<workspace>/.integration/tim-pr-prefix/bin/tim",
+    "incus_conf": "fresh temporary directory, not the user configuration",
+    "checks": {
+      "registered": true,
+      "incus_list": true,
+      "default_unchanged": true,
+      "idempotent": true
+    },
+    "success": true,
+    "brew_install_ran": false,
+    "lifecycle_gate": false,
+    "swift_tests": 50,
+    "guest_python_tests": 4,
+    "strict_openspec_items": 6
+  },
+  "review_followup": {
+    "recorded_at": "2026-10-05T06:55:44.143760+00:00",
+    "default_before": "local",
+    "default_after": "local",
+    "checks": {
+      "registered": true,
+      "incus_list": true,
+      "default_unchanged": true,
+      "idempotent": true
+    },
+    "success": true,
+    "brew_install_ran": false,
+    "lifecycle_gate": false,
+    "swift_tests": 50,
+    "python_tests": 7,
+    "strict_openspec_items": 6
+  }
+}
