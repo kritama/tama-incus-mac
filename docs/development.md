@@ -118,7 +118,7 @@ The ready-runtime test exercises an ordinary unprivileged system container, vers
 ```sh
 python3 Integration/scripts/acceptance.py \
   --state-dir "$PWD/.integration/state" --incus /absolute/path/to/incus \
-  --report .integration/acceptance.json
+  --report .integration/zfs-acceptance.json
 ```
 
 The opt-in idle-stream regression holds 80 incomplete Incus requests open while probing control status, guest health and normal Incus API requests. Run it against an already ready isolated runtime before workload acceptance:
@@ -132,11 +132,15 @@ Host relays use nonblocking readiness notifications with at most 64 KiB buffered
 
 Unit tests never boot VMs. `Integration/scripts/check.sh` runs debug/release builds, Swift tests, strict formatting, shell syntax, Python compilation and guest-listener regression tests. GitHub Actions runs these and pinned OpenSpec strict validation on the `xcode-27` macOS ARM64 runner. Hardware acceptance stays opt-in on a physical supported Mac with the virtualization entitlement; hosted CI success does not establish hardware acceptance.
 
+## ZFS qualification
+
+Fresh appliances provision ZFS when the data disk is blank, the data disk is at least 4 GiB, and guest MemTotal is at least 3670016 KiB. The hardware-qualified host configuration is 4096 MiB RAM. The guest check does not reject every host configuration below 4096 MiB. The qualified package pair is Alpine v3.24 `linux-lts`/`zfs-lts` 6.18.55-r0 and ZFS 2.4.4-r0. Bootstrap registers `tama-bootstrap` before a kernel mismatch powers off, so the next boot continues without another cloud-init runcmd. Look for `TAMA_ZFS_KERNEL_REBOOT_REQUIRED` in `serial.log`, then start the runtime again. The first EFI kernel update removes unused `/boot/dtbs-lts` because the cloud image's EFI partition otherwise lacks staging space. A label alone is not a recognized ext4 appliance; repair and writable mount happen only after a read-only `noload` inspection finds the Incus layout. The appliance does not change Incus-owned workload datasets. Workload reservations are requested through Incus pool configuration. Filesystem creation-time reservations are hardware-measured; zvol refreservation remains none. Mixed workloads were measured on 8–11 GiB data disks, not at the 4 GiB guest floor. A storage failure is logged in `/var/log/tama-storage.log` and readiness stays withheld; do not format or replace the disk to clear it. See the [qualification results](zfs-qualification.md).
+
 ## Recovery and safety
 
 Keep the state directory private (0700) and sockets/config private (0600). The daemon holds a nonblocking process lock; a second process cannot replace its sockets. Custom symlink roots/endpoints are rejected, while macOS's standard /var and /tmp ancestor aliases are recognized. Darwin limits Unix socket paths to 103 bytes; use a short state path.
 
-After daemon crash, durable configuration is loaded as stopped; readiness is never reused. A boot failure retains disks and a private `serial.log`; inspect it before stopping/retrying. A graceful stop timeout leaves the running guest intact, allowing an explicit forced stop. Do not shrink or replace a live disk. Disk growth and configuration must occur while stopped; rerunning boot grows ext4. A partial create retains its disks for explicit recovery/reset rather than erasing potential data. Reset with DELETE and `confirm=true` only after stopping. It destroys all appliance Incus data. Confirmed reset records durable intent before removing files; restart completes interrupted cleanup. Invalid intent or unmarked incomplete state is preserved for explicit recovery.
+After daemon crash, durable configuration is loaded as stopped; readiness is never reused. A boot failure retains disks and a private `serial.log`; inspect it before stopping/retrying. A graceful stop timeout leaves the running guest intact, allowing an explicit forced stop. Do not shrink or replace a live disk. Disk growth and configuration must occur while stopped. The next boot grows a recognized ext4 filesystem or expands the owned ZFS vdev with `zpool online -e`; it does not recreate the pool. A partial create retains its disks for explicit recovery/reset rather than erasing potential data. Reset with DELETE and `confirm=true` only after stopping. It destroys all appliance Incus data. Confirmed reset records durable intent before removing files; restart completes interrupted cleanup. Invalid intent or unmarked incomplete state is preserved for explicit recovery.
 
 Guest initialization records persistent pending/started markers on a newly formatted data disk. A failure before preseed begins can retry on reboot. If preseed starts and fails or is interrupted, provisioning refuses to replay it automatically; preserve the disk and inspect diagnostics before explicit recovery/reset. Reused disks without pending initialization keep their existing Incus configuration, including custom pool names.
 

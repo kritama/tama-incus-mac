@@ -2,6 +2,7 @@
 """Opt-in real VZ/Incus acceptance. Uses the standard Incus CLI, never a VM CLI."""
 import argparse
 from datetime import datetime, timezone
+from storage_contract import assert_production_zfs, snapshot_restore_markers
 import http.client
 import json
 import os
@@ -25,7 +26,7 @@ name = 'tama-test-' + uuid.uuid4().hex[:10]
 client = state / 'acceptance-client' / name
 client.mkdir(parents=True, mode=0o700)
 env = dict(os.environ, INCUS_CONF=str(client))
-instances = [name, name + '-oci', name + '-oci-reuse', name + '-vm', name + '-shares']
+instances = [name, name + '-recovered', name + '-oci', name + '-oci-reuse', name + '-vm', name + '-shares']
 oci_remote = name + '-remote'
 # Versioned upstream tag keeps acceptance independent of moving "latest".
 oci_image = oci_remote + ':alpine:3.23'
@@ -102,11 +103,46 @@ try:
     report['server_environment'] = server['environment']
     assert 'alpine' in server['environment']['os_name'].lower(), server['environment']
     check('alpine_guest')
+    pool = json.loads(run('query', '/1.0/storage-pools/default'))
+    profile = json.loads(run('query', '/1.0/profiles/default'))
+    assert_production_zfs(pool, profile)
+    check('zfs_default_and_profile', {'driver': pool['driver'], 'source': pool['config'].get('source')})
     check('standard_client_unix_vsock')
     run('launch', 'images:debian/13', name, '-c', 'boot.autostart=true')
     marker = uuid.uuid4().hex
     run('exec', name, '--', 'sh', '-c', f'printf {marker} > /root/tama-persistence; uname -m')
     check('system_container_exec_websocket')
+    volume = name + '-volume'
+    run('storage', 'volume', 'create', 'default', volume, 'size=128MiB')
+    run('storage', 'volume', 'attach', 'default', volume, name, 'acceptance-volume', '/mnt/volume')
+    run('exec', name, '--', 'sh', '-c', 'dd if=/dev/zero of=/mnt/volume/data bs=1M count=1; sync')
+    volume_checksum = run('exec', name, '--', 'sha256sum', '/mnt/volume/data')
+    run('storage', 'volume', 'snapshot', 'create', 'default', volume, 's1')
+    run('exec', name, '--', 'sh', '-c', 'printf changed > /mnt/volume/data')
+    # The attached volume cannot be restored while the container is running.
+    run('stop', name, '--force')
+    run('storage', 'volume', 'restore', 'default', volume, 's1')
+    run('start', name)
+    assert run('exec', name, '--', 'sha256sum', '/mnt/volume/data') == volume_checksum
+    check('custom_volume_snapshot_restore')
+    markers = snapshot_restore_markers(marker)
+    run('snapshot', 'create', name, 's1')
+    run('exec', name, '--', 'sh', '-c',
+        f'printf {markers["original_after_refused_restore"]} > /root/tama-persistence')
+    run('snapshot', 'create', name, 's2')
+    restore = subprocess.run([str(incus), 'snapshot', 'restore', name, 's1'], env=env,
+                             text=True, capture_output=True, timeout=120)
+    report['commands'].append({'arguments': ['snapshot', 'restore', name, 's1'],
+                               'exit_code': restore.returncode, 'stdout': restore.stdout,
+                               'stderr': restore.stderr})
+    save()
+    assert restore.returncode != 0 and 'snapshot' in restore.stderr.lower(), restore.stderr
+    assert run('exec', name, '--', 'cat', '/root/tama-persistence') == markers['original_after_refused_restore']
+    run('copy', name + '/s1', name + '-recovered')
+    run('start', name + '-recovered')
+    assert run('exec', name + '-recovered', '--', 'cat', '/root/tama-persistence') == markers['copied_s1']
+    check('older_snapshot_restore_refused_and_copy_preserved')
+    marker = markers['original_after_refused_restore']
     # exec is a standard Incus WebSocket operation; no custom execution endpoint exists.
     run('exec', name, '--', 'sh', '-c', 'for i in 1 2 3 4 5; do ping -c 1 -W 3 1.1.1.1 && exit 0; sleep 1; done; exit 1')
     check('container_outbound_network')

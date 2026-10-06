@@ -1,0 +1,9 @@
+#!/sbin/openrc-run
+description="Continue appliance provisioning across a kernel reboot"
+depend() {
+    need networking
+    after cloud-init
+}
+start() {
+    /usr/local/libexec/tama-bootstrap.sh
+}

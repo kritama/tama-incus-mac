@@ -38,7 +38,7 @@ JSON uses snake_case. Configuration schema 1 requires every nonoptional field sh
 
 A share is `{"name":"workspace","path":"/absolute/project","read_only":true}`. Names contain ASCII letters, digits, `_` or `-`, up to 36 bytes; paths must be existing directories. The guest exposes them under `/mnt/tama-shares/<name>`; callers use standard Incus disk devices to pass them to workloads. Shares never appear implicitly.
 
-Resource bounds: 1–64 CPUs (also limited by VZ), 512–262144 MiB RAM (also limited by VZ), 1–16384 GiB data, 1–1800 second readiness and 1–300 second shutdown. Updates cannot change appliance/seed identity or shrink data. Growing the disk preserves bytes and grows ext4 at the next boot.
+Resource bounds: 1–64 CPUs (also limited by VZ), 512–262144 MiB RAM (also limited by VZ), 1–16384 GiB data, 1–1800 second readiness and 1–300 second shutdown. Updates cannot change appliance/seed identity or shrink data. Growing the disk preserves bytes. The next boot grows recognized ext4 or expands an owned ZFS vdev; it never shrinks or recreates a pool.
 
 Error envelope: `{"error":{"code":"conflict","message":"A runtime mutation is already in progress"}}`. Codes: `invalid_request`/`invalid_configuration` (400), `not_found` (404), `conflict` (409), `unavailable`/`io` (503), `timeout` (504). Invalid JSON yields 400. Control requests use HTTP/1.0 or 1.1 with one request per connection, at most 16 KiB headers and 1 MiB body. Chunked transfer and duplicate lengths are rejected. Incus traffic has its own stream socket and does not inherit control HTTP restrictions.
 

@@ -47,7 +47,8 @@ entries = [('bridge.py', '/usr/local/libexec/tama-bridge.py', '0755'),
            ('storage.sh', '/usr/local/libexec/tama-storage.sh', '0755'),
            ('bootstrap.sh', '/usr/local/libexec/tama-bootstrap.sh', '0755'),
            ('tama-storage.initd', '/etc/init.d/tama-storage', '0755'),
-           ('tama-bridge.initd', '/etc/init.d/tama-bridge', '0755')]
+           ('tama-bridge.initd', '/etc/init.d/tama-bridge', '0755'),
+           ('tama-bootstrap.initd', '/etc/init.d/tama-bootstrap', '0755')]
 # JSON strings are YAML-compatible scalars; use block contents without a YAML dependency.
 user_data = '#cloud-config\noutput: {all: \"| tee -a /var/log/cloud-init-output.log /dev/hvc0\"}\nusers: []\nssh_pwauth: false\ndisable_root: true\nwrite_files:\n'
 for filename, destination, permissions in entries:
