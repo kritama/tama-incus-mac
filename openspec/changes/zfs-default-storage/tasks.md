@@ -1,0 +1,45 @@
+# Tasks
+
+## 1. Selected ZFS compatibility proof — blocking gate
+
+Groups 2–5 describe the proposed ZFS implementation. They MUST NOT begin until task 1.8 records the compatibility results and confirms this design. ZFS is selected; qualification does not authorize a second production backend or automatic fallback.
+
+- [x] 1.1 Record a candidate stable-branch Alpine aarch64 image, signature-verified kernel/OpenZFS/Incus package versions and digests; verify repository availability and kernel/module ABI match in a reproducible compatibility report.
+- [x] 1.2 With explicit hardware opt-in, boot a disposable isolated appliance and prove ZFS module loading after reboot alongside EFI, virtio, vsock and the actual Incus `zfs` supported-driver report; record commands, outcomes and nesting capability without modifying `.integration/a15` or global state.
+- [x] 1.3 Prove the single-data-disk parent pool, metadata sibling and Incus-owned workload dataset using upstream Incus; verify preseed source configuration, driver/profile mapping, clean export/re-import and growth without metadata loss, then fix concrete names and layout version in the design/report before production provisioning changes.
+- [x] 1.4 Measure ARC/workload memory, minimum viable disk space and sparse backing-file growth at the existing defaults and resource boundaries; qualify metadata-cache and instance-startup headroom, document supported limits and failure behavior, and validate any required host resource/spec revisions before implementation. If any compatibility/layout gate fails, document the blocker and revise the plan rather than enabling fallback.
+- [x] 1.5 Record the user-selected ZFS default, mixed container/VM rationale and older-snapshot rollback limitations in the proposal/design/specs; remove the unneeded Btrfs comparison while retaining ZFS hardware qualification and no fallback.
+- [x] 1.6 Verify standard Incus direct restore to `s1` with newer `s2`/`s3` snapshots and a newer-snapshot clone retained on ZFS; verify checksums or record refusal/deletion requirements, then separately verify copying `s1` into a new instance. Test destructive ZFS options only on disposable duplicates and record outcomes in the qualification report.
+- [x] 1.7 Qualify container/custom-volume behavior, quota pressure, snapshot/clone space retention, full-pool failure, memory and sparse host-file allocation; include VM random-I/O and snapshot/restore/quota checks only with usable nested KVM, and record unsupported/pending VM evidence plus graceful/forced-stop recovery.
+- [x] 1.8 Deliver the ZFS qualification report with upstream references, measured outcomes and recovery limitations; confirm the ZFS design and run strict OpenSpec validation before groups 2–5 begin. Verify no automatic fallback or untested default is claimed.
+
+Evidence: `docs/zfs-qualification.md`. The 2026-10-06 production boot measured Incus creation-time filesystem reservations and a 27-second full-pool autostart reboot. Zvol `refreservation` remained none. The appliance does not mutate Incus-owned datasets. Legacy and foreign hardware acceptance are recorded under 5.3.
+
+## 2. Guest packages, safe classification and durable layout
+
+- [x] 2.1 Update appliance preparation/verification and guest package provisioning for the proven matching kernel/module pair; verify APK signatures, stable-branch isolation and repeatable boot/module loading, with focused version-mismatch tests and updated development instructions.
+- [x] 2.2 Implement classification of entirely blank, recognized legacy ext4, owned ZFS and foreign/ambiguous disks; verify tests for nonzero tail bytes, absent/unknown signatures, foreign ext4, wrong pool GUID/device and identity collisions preserve all nonblank data.
+- [x] 2.3 Implement versioned identity and durable creation phases, metadata/workload dataset separation and blank-only pool creation; verify injected failures at each phase never authorize reformatting, uncontrolled import or blind repeated preseed, and document the on-disk layout and recovery boundary.
+- [x] 2.4 Retain recognized legacy ext4 checking/growth and Incus configuration; verify compatibility fixtures based on the existing unversioned layout preserve pools, profiles, instances and data, and document that existing appliances do not convert or replace their root image automatically.
+
+## 3. Default pool and lifecycle integration
+
+- [x] 3.1 Initialize fresh Incus `default` with `driver: zfs` and its default profile root mapping through upstream preseed; verify focused fresh/repeated/interrupted initialization tests, missing-module rejection before formatting and unexpected-driver readiness failure, and document the fresh-install contract.
+- [x] 3.2 Implement controlled import/mount before Incus and stop/unmount/export after Incus with the proven dataset export configuration; verify OpenRC dependency and failure tests plus graceful and forced-stop recovery in isolated opt-in acceptance, with no import-all or automatic forced adoption.
+- [x] 3.3 Surface storage identity/import/mount/preseed failures through existing health/readiness diagnostics; verify the runtime never reports ready on failed storage and logs retain actionable errors, and update troubleshooting instructions without adding workload operations to `tim`.
+
+## 4. Growth and resource behavior
+
+- [x] 4.1 Implement stopped-state ZFS vdev capacity expansion, including any validated partition-layout handling; verify repeated growth, unchanged pool identity and checksums, snapshot/custom-volume retention, failure preservation and shrink rejection, and update disk-growth documentation for both backends.
+- [x] 4.2 Apply the measured ARC/resource policy and safe space-exhaustion behavior; verify boundary and pressure tests fail clearly without pool recreation or silent driver changes, and document host free-space needs, supported limits and the single-disk backup limitation.
+
+## 5. New acceptance evidence and integration checks
+
+- [x] 5.1 Extend isolated acceptance tooling to assert the actual `default` driver and profile mapping, standard Incus container/custom-volume operations and snapshot/restore/clone behavior, including the qualified backend's older-snapshot recovery constraints; verify the runner rejects wrong drivers and records nested VM checks as passed or explicitly unsupported, with documented opt-in invocation.
+- [x] 5.2 Run new opt-in hardware acceptance for first boot, repeated boot, graceful restart, forced-stop persistence and disk growth; record exact image/package versions, pool identity, checksums, capacity and standard Incus results separately from historical ext4 evidence.
+- [x] 5.3 Run isolated failure/preservation acceptance for module mismatch, full pool, failed import/mount, interrupted provisioning, foreign disks and legacy ext4 fixtures; record before/after preservation evidence and explicit recovery outcomes without touching active appliance, normal Incus config or global packages. Failure-preservation evidence is recorded. The cleanup incident remains documented: the user clarified that they stopped the a15 daemon; the parent verified its VM was stopped, then stopped only the agent-restored daemon (PID 70353) to retain that intended state. No VM restart or disk/config modification was requested. The restoration question is resolved; this does not erase the earlier cleanup deviation or prove historical a15 disk hashes.
+- [x] 5.4 Run `Integration/scripts/check.sh` and `mise exec -- openspec validate --all --strict --no-interactive`, obtain CodeRabbit review and resolve applicable findings; record actual results and keep incomplete hardware tasks unchecked before submitting the feature PR to `develop`.
+
+Final independent validation, 2026-10-06: canonical checks passed (50 Swift tests, 46 Python tests, isolated install); strict OpenSpec passed 7/7; `git diff --check` passed. Two parent CodeRabbit reviews covered 27 files. The first completed normally with a major preparation-guard finding; the second completed with unverified-findings warnings and a minor completed-marker/kernel-record finding. Both applicable findings were fixed and independently verified with behavioral regressions. The warning-bearing review is not claimed clean. Task 5.3 is closed after the user's a15 clarification and restoration of the intended stopped daemon state, with the incident retained in the report. These checks do not establish a release or merge.
+
+Pre-publication validation: parent independently parsed the qualification helper's emitted cloud-config with a YAML parser, verified top-level bootcmd/runcmd, all six write_files entries, the init shebang and shell syntax. Canonical checks passed with 50 Swift and 46 Python tests. The new CodeRabbit major seed-indent finding was fixed. Its verification review completed normally across 27 files with two minor documentation findings; current task status and test-count records were reconciled with the actual validation results. No clean zero-findings review is claimed.

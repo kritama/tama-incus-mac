@@ -10,7 +10,7 @@ start() {
     eend $?
 }
 stop() {
-    ebegin "Unmounting persistent Incus data"
-    umount /var/lib/incus
+    ebegin "Exporting or unmounting persistent Incus data"
+    /usr/local/libexec/tama-storage.sh stop
     eend $?
 }

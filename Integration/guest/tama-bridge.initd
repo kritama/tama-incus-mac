@@ -13,4 +13,5 @@ depend() {
 start_pre() {
     test ! -e /var/lib/incus/.tama-preseed-pending || return 1
     /usr/sbin/incusd waitready --timeout 120
+    /usr/local/libexec/tama-storage.sh ready
 }

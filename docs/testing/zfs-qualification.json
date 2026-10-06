@@ -1,0 +1,658 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-10-05",
+  "scope": "Isolated ZFS qualification plus 2026-10-06 production-path evidence. Historical pending fields below are the 2026-10-05 snapshot, not the current task list.",
+  "status": "production_path_and_failure_preservation_recorded",
+  "host": {
+    "model": "Mac16,5",
+    "cpu": "Apple M4 Max",
+    "memory_bytes": 68719476736,
+    "os": "macOS 27.0.1",
+    "build": "26A434",
+    "virtualization": "Apple Virtualization.framework"
+  },
+  "source_image": {
+    "archive": "alpine-3.24.2-aarch64-cloudinit-metal-r0.raw.tar.gz",
+    "archive_sha512": "d8ed6f0fa98d15218c351d2903d961b2cec68a7fd39ec8567fae9c49d943ae21f5cd56754497480a0cf899332acc632617b531b153e12e81d1f021c81f634518",
+    "signing_fingerprint": "F26ADFADBAE702EF7AF637459DA7EF23BFFCDF22",
+    "raw_sha256": "47c0b69be2a3458c2a1ff11519e8f4b3f6565a73e89a2fe2294ed0ca3e496516"
+  },
+  "package_branch": "Alpine v3.24 main/community aarch64",
+  "package_sha256": {
+    "incus-7.0.1-r1.apk": "e7d9f08dd5565a2973ab5429e551539ee6c24d2b7d3cd7cf280f6178e1c78513",
+    "linux-lts-6.18.55-r0.apk": "31aeae56fa527b2fb4fdd4aefbd693cbec210a8cbfd4ea7597a1773b832e9f83",
+    "zfs-2.4.4-r0.apk": "fffbc3118e3fa28704774851e2104afe22dd5186c73ac35942986775275d81b6",
+    "zfs-libs-2.4.4-r0.apk": "e32564f1ce85bde49f35c8ff4b69bf4f3a9f3f0ea1ca0ec3e439a0ba3084d5db",
+    "zfs-lts-6.18.55-r0.apk": "f31712237cee26084b5c8909a6bae7e5ff9ed532a591b5a8abdbc7420bcdfba3",
+    "zfs-openrc-2.4.4-r0.apk": "0d43834679e7728019391db5999194022d5ff84c7b64b3b84efdea3278f04962"
+  },
+  "apk_verify": "all six retained APKs reported OK",
+  "booted_kernel": "6.18.55-0-lts",
+  "loaded_zfs": "2.4.4-1",
+  "incus_server": "7.0.1-r1",
+  "incus_client": "7.5.1",
+  "incus_supported_storage_drivers": [
+    {
+      "Name": "zfs",
+      "Remote": false,
+      "Version": "2.4.4-1"
+    },
+    {
+      "Name": "dir",
+      "Remote": false,
+      "Version": "1"
+    }
+  ],
+  "layout": {
+    "prototype_version": "qualification-v1",
+    "pool": "tama-data",
+    "metadata": "tama-data/metadata",
+    "metadata_mount": "/var/lib/incus",
+    "incus_source": "tama-data/workloads",
+    "incus_zfs_export": false,
+    "production_identity_contract": "pending"
+  },
+  "runs": [
+    {
+      "artifact": ".integration/zfs-q6-qualified.json",
+      "status": "passed",
+      "started_at": "2026-10-05T08:33:11.929727+00:00",
+      "finished_at": "2026-10-05T08:37:00.756032+00:00",
+      "memory_mib": 4096,
+      "initial_data_disk_gib": 32,
+      "retained_prefix": "zq-817784f5",
+      "pool_guid": "2868102774672305685",
+      "growth": {
+        "before": 32397938688,
+        "after": 33453965312
+      },
+      "post_reboot_resources": {
+        "MemTotal_kib": 4008360,
+        "MemAvailable_kib": 3041592,
+        "arc_c_max_bytes": 3030818816,
+        "arc_size_bytes": 62466688
+      },
+      "checks": {
+        "zfs_default_and_profile": {
+          "config": {
+            "source": "tama-data/workloads",
+            "volatile.initial_source": "tama-data/workloads",
+            "zfs.export": "false",
+            "zfs.pool_name": "tama-data/workloads"
+          },
+          "description": "",
+          "driver": "zfs",
+          "locations": [
+            "none"
+          ],
+          "name": "default",
+          "status": "Created",
+          "used_by": [
+            "/1.0/images/abc1f1349013f208b609770b5892926c7930891c1ea0516632a90e0060cd1e40",
+            "/1.0/instances/zq-33c6466c-probe",
+            "/1.0/instances/zq-990e6613-probe",
+            "/1.0/instances/zq-ca17587d-clone",
+            "/1.0/instances/zq-ca17587d-probe",
+            "/1.0/instances/zq-ca17587d-recovered",
+            "/1.0/profiles/default",
+            "/1.0/storage-pools/default/volumes/custom/zq-ca17587d-volume"
+          ]
+        },
+        "older_restore_refuses_without_deleting_descendants": true,
+        "copy_older_snapshot_preserves_newer_snapshots_and_clone": true,
+        "custom_volume_quota_preserves_existing_data": true,
+        "nested_vm_random_overwrite_snapshot_restore": true,
+        "before_growth": {
+          "capacity": 32397938688,
+          "guid": "2868102774672305685",
+          "host_allocated_bytes": 1285435392
+        },
+        "graceful_export_import_persistence": true,
+        "forced_stop_import_persistence": true,
+        "stopped_growth_preserves_identity_and_data": {
+          "before": 32397938688,
+          "after": 33453965312
+        }
+      }
+    },
+    {
+      "artifact": ".integration/zfs-q8-qualified.json",
+      "status": "passed",
+      "started_at": "2026-10-05T08:58:52.985933+00:00",
+      "finished_at": "2026-10-05T09:02:17.449560+00:00",
+      "memory_mib": 2048,
+      "initial_data_disk_gib": 4,
+      "retained_prefix": "zq-d233f54d",
+      "pool_guid": "12013223106127235492",
+      "growth": {
+        "before": 2816393216,
+        "after": 3864883200
+      },
+      "post_reboot_resources": {
+        "MemTotal_kib": 2015380,
+        "MemAvailable_kib": 1294464,
+        "arc_c_max_bytes": 536870912,
+        "arc_size_bytes": 51830152
+      },
+      "checks": {
+        "zfs_default_and_profile": {
+          "config": {
+            "source": "tama-data/workloads",
+            "volatile.initial_source": "tama-data/workloads",
+            "zfs.export": "false",
+            "zfs.pool_name": "tama-data/workloads"
+          },
+          "description": "",
+          "driver": "zfs",
+          "locations": [
+            "none"
+          ],
+          "name": "default",
+          "status": "Created",
+          "used_by": [
+            "/1.0/profiles/default"
+          ]
+        },
+        "older_restore_refuses_without_deleting_descendants": true,
+        "copy_older_snapshot_preserves_newer_snapshots_and_clone": true,
+        "custom_volume_quota_preserves_existing_data": true,
+        "nested_vm_random_overwrite_snapshot_restore": true,
+        "before_growth": {
+          "capacity": 2816393216,
+          "guid": "12013223106127235492",
+          "host_allocated_bytes": 1272815616
+        },
+        "graceful_export_import_persistence": true,
+        "forced_stop_import_persistence": true,
+        "stopped_growth_preserves_identity_and_data": {
+          "before": 2816393216,
+          "after": 3864883200
+        },
+        "snapshots_and_clones_survive_restarts_and_growth": true,
+        "workload_pool_exhaustion_preserves_metadata_and_data": {
+          "metadata_refreservation_bytes": 1073741824,
+          "before": {
+            "inodes": {
+              "total": 0,
+              "used": 0
+            },
+            "space": {
+              "total": 3864748032,
+              "used": 657928192
+            }
+          },
+          "during": {
+            "inodes": {
+              "total": 0,
+              "used": 0
+            },
+            "space": {
+              "total": 3867029504,
+              "used": 3867029504
+            }
+          },
+          "host_allocated_bytes": 4347666432,
+          "scope": "physical workload space exhausted; metadata reservation and ZFS slop retained"
+        },
+        "deletion_and_trim": {
+          "guest_resources": {
+            "inodes": {
+              "total": 0,
+              "used": 0
+            },
+            "space": {
+              "total": 3864686592,
+              "used": 657829888
+            }
+          },
+          "trim": "",
+          "host_allocated_bytes": 1088159744
+        }
+      }
+    },
+    {
+      "artifact": ".integration/zfs-q8-final3.json",
+      "status": "failed",
+      "started_at": "2026-10-05T09:06:10.640230+00:00",
+      "finished_at": "2026-10-05T09:16:21.433368+00:00",
+      "memory_mib": 2048,
+      "initial_data_disk_gib": 5,
+      "retained_prefix": "zq-ce700c6a",
+      "pool_guid": "12013223106127235492",
+      "growth": {
+        "before": 3863724032,
+        "after": 4903677952
+      },
+      "post_reboot_resources": {
+        "MemTotal_kib": 2015380,
+        "MemAvailable_kib": 907544,
+        "arc_c_max_bytes": 536870912,
+        "arc_size_bytes": 66246840
+      },
+      "checks": {
+        "zfs_default_and_profile": {
+          "config": {
+            "source": "tama-data/workloads",
+            "volatile.initial_source": "tama-data/workloads",
+            "zfs.export": "false",
+            "zfs.pool_name": "tama-data/workloads"
+          },
+          "description": "",
+          "driver": "zfs",
+          "locations": [
+            "none"
+          ],
+          "name": "default",
+          "status": "Created",
+          "used_by": [
+            "/1.0/images/1685005a58298417bc0b369762f0cd555d669728fd46624c715f5b98909f102e",
+            "/1.0/images/abc1f1349013f208b609770b5892926c7930891c1ea0516632a90e0060cd1e40",
+            "/1.0/instances/zq-033ce514-probe",
+            "/1.0/instances/zq-7d53e1c1-probe",
+            "/1.0/instances/zq-d233f54d-clone",
+            "/1.0/instances/zq-d233f54d-probe",
+            "/1.0/instances/zq-d233f54d-recovered",
+            "/1.0/instances/zq-d233f54d-vm",
+            "/1.0/profiles/default",
+            "/1.0/storage-pools/default/volumes/custom/zq-d233f54d-volume"
+          ]
+        },
+        "bounded_arc_and_metadata_reservation": true,
+        "container_outbound_network": true,
+        "virtiofs_readonly": true,
+        "virtiofs_writable": true,
+        "older_restore_refuses_without_deleting_descendants": true,
+        "copy_older_snapshot_preserves_newer_snapshots_and_clone": true,
+        "custom_volume_quota_preserves_existing_data": true,
+        "nested_vm_random_overwrite_snapshot_restore": true,
+        "nested_vm_block_volume_limit_preserves_data": {
+          "bytes": 134217728,
+          "checksum": "fa540ff23a74fb30315d096c1b5a0d55c8b017856929dc21fbebbde795d1d2ce  -"
+        },
+        "before_growth": {
+          "capacity": 3863724032,
+          "guid": "12013223106127235492",
+          "host_allocated_bytes": 1468858368
+        },
+        "graceful_export_import_persistence": true,
+        "forced_stop_import_persistence": true,
+        "stopped_growth_preserves_identity_and_data": {
+          "before": 3863724032,
+          "after": 4903677952
+        },
+        "snapshots_and_clones_survive_restarts_and_growth": true,
+        "workload_pool_exhaustion_preserves_metadata_and_data": {
+          "metadata_refreservation_bytes": 1073741824,
+          "before": {
+            "inodes": {
+              "total": 0,
+              "used": 0
+            },
+            "space": {
+              "total": 4903641088,
+              "used": 762281984
+            }
+          },
+          "during": {
+            "inodes": {
+              "total": 0,
+              "used": 0
+            },
+            "space": {
+              "total": 4906688512,
+              "used": 4906688512
+            }
+          },
+          "host_allocated_bytes": 5357662208,
+          "scope": "physical workload space exhausted; metadata reservation and ZFS slop retained"
+        }
+      },
+      "error": "zq-ce700c6a-probe did not return"
+    }
+  ],
+  "small_fixture_vm_resource_sample": {
+    "MemTotal_kib": 2015380,
+    "MemAvailable_kib": 152120,
+    "arc_c_max_bytes": 536870912,
+    "arc_size_bytes": 203063752
+  },
+  "failure_preservation": {
+    "initial_reservation_bytes": 134217728,
+    "metadata_used_approx_mib": 348,
+    "artifact": ".integration/zfs-q7-qualified.json",
+    "status": "failed",
+    "error": "Unexpected result for ('exec', 'zq-0dcb260d-probe', '--', 'sha256sum', '/mnt/volume/data'): Error: Post \"http://unix.socket/1.0/instances/zq-0dcb260d-probe/exec\": EOF\n",
+    "filler_bytes_before_enospc": 3914203136,
+    "offline_clone": ".integration/zq7-full-preserved",
+    "recovery": "stopped growth 5 to 6 GiB; same GUID, checksum and snapshots; test filler removed through Incus",
+    "recovery_evidence": [
+      ".integration/zfs-q7-recovery-verification.json",
+      ".integration/zfs-q7-recovery-cleanup.json"
+    ]
+  },
+  "full_reboot_recovery": {
+    "offline_clone": ".integration/zq8-full-preserved",
+    "workload_start_error": "Error: Failed to create credentials directory: chown /var/lib/incus/containers/zq-ce700c6a-probe/credentials: no such file or directory\nTry `incus info --show-log zq-ce700c6a-probe` for more info\n",
+    "detach_error": "ENOSPC writing instance backup.yaml; actual DB detach persisted",
+    "verified_filler_unused": true,
+    "recovery": "delete only verified unused filler via Incus; no disk growth or direct workload-dataset deletion",
+    "checksum": "55dc4c66b474b2abdff92063081adb23d8b79c78c99468ecba5b79556f6edec2  /mnt/volume/data",
+    "guid": "12013223106127235492",
+    "artifact": ".integration/zfs-q8-full-recovery-complete.json",
+    "status": "passed"
+  },
+  "broad_runtime_acceptance": {
+    "artifact": ".integration/zfs-q6-runtime-acceptance.json",
+    "status": "failed",
+    "reason": "Debian system-container image download exceeded 600 seconds; OCI cache suite incomplete"
+  },
+  "pending": [],
+  "retained_vm_repeat_failure": {
+    "artifact": ".integration/zfs-q8-complete.json",
+    "status": "failed",
+    "error": "{'error': {'code': 'timeout', 'message': 'Incus readiness timed out; inspect serial.log, then stop/start to recover'}}",
+    "configuration_memory_mib": 2048,
+    "retained_vm_count": 3,
+    "each_vm_memory": "1GiB",
+    "pool_status": "ONLINE, free space retained",
+    "diagnosis": "likely resource overcommit; no OOM-kill line proved in retained logs",
+    "recovery": "same disks with temporary 8 GiB RAM; all three VMs confirmed Running, then stopped and autostart disabled without deletion",
+    "recovery_artifact": ".integration/zfs-q8-memory-recovery.json"
+  },
+  "default_memory_run": {
+    "artifact": ".integration/zfs-default-memory-qualified.json",
+    "status": "failed",
+    "error": "{'error': {'code': 'timeout', 'message': 'Incus readiness timed out; inspect serial.log, then stop/start to recover'}}",
+    "memory_mib": 4096,
+    "initial_data_disk_gib": 6,
+    "pool_guid": "12013223106127235492",
+    "growth": {
+      "before": 4901445632,
+      "after": 5941190656
+    },
+    "vm_memory_sample": {
+      "MemTotal_kib": 4008360,
+      "MemAvailable_kib": 2301628,
+      "arc_c_max_bytes": 536870912,
+      "arc_size_bytes": 280737688
+    },
+    "checks": {
+      "zfs_default_and_profile": {
+        "config": {
+          "source": "tama-data/workloads",
+          "volatile.initial_source": "tama-data/workloads",
+          "zfs.export": "false",
+          "zfs.pool_name": "tama-data/workloads"
+        },
+        "description": "",
+        "driver": "zfs",
+        "locations": [
+          "none"
+        ],
+        "name": "default",
+        "status": "Created",
+        "used_by": [
+          "/1.0/images/1685005a58298417bc0b369762f0cd555d669728fd46624c715f5b98909f102e",
+          "/1.0/images/abc1f1349013f208b609770b5892926c7930891c1ea0516632a90e0060cd1e40",
+          "/1.0/instances/zq-033ce514-probe",
+          "/1.0/instances/zq-7d53e1c1-probe",
+          "/1.0/instances/zq-ce700c6a-clone",
+          "/1.0/instances/zq-ce700c6a-probe",
+          "/1.0/instances/zq-ce700c6a-recovered",
+          "/1.0/instances/zq-ce700c6a-vm",
+          "/1.0/instances/zq-d233f54d-clone",
+          "/1.0/instances/zq-d233f54d-probe",
+          "/1.0/instances/zq-d233f54d-recovered",
+          "/1.0/instances/zq-d233f54d-vm",
+          "/1.0/instances/zq-d2f5f855-clone",
+          "/1.0/instances/zq-d2f5f855-probe",
+          "/1.0/instances/zq-d2f5f855-recovered",
+          "/1.0/instances/zq-d2f5f855-vm",
+          "/1.0/profiles/default",
+          "/1.0/storage-pools/default/volumes/custom/zq-ce700c6a-block",
+          "/1.0/storage-pools/default/volumes/custom/zq-ce700c6a-volume",
+          "/1.0/storage-pools/default/volumes/custom/zq-d233f54d-volume",
+          "/1.0/storage-pools/default/volumes/custom/zq-d2f5f855-block",
+          "/1.0/storage-pools/default/volumes/custom/zq-d2f5f855-volume"
+        ]
+      },
+      "bounded_arc_and_metadata_reservation": true,
+      "container_outbound_network": true,
+      "virtiofs_readonly": true,
+      "virtiofs_writable": true,
+      "older_restore_refuses_without_deleting_descendants": true,
+      "copy_older_snapshot_preserves_newer_snapshots_and_clone": true,
+      "custom_volume_quota_preserves_existing_data": true,
+      "nested_vm_random_overwrite_snapshot_restore": true,
+      "nested_vm_block_volume_limit_preserves_data": {
+        "bytes": 134217728,
+        "checksum": "3808336110ffecf41e29316371d498faa7df6842b2a7d1429866856d56d61964  -"
+      },
+      "before_growth": {
+        "capacity": 4901445632,
+        "guid": "12013223106127235492",
+        "host_allocated_bytes": 1843363840
+      },
+      "graceful_export_import_persistence": true,
+      "forced_stop_import_persistence": true,
+      "nested_vm_data_survives_restarts_and_growth": true,
+      "stopped_growth_preserves_identity_and_data": {
+        "before": 4901445632,
+        "after": 5941190656
+      },
+      "snapshots_and_clones_survive_restarts_and_growth": true,
+      "workload_pool_exhaustion_preserves_metadata_and_data": {
+        "metadata_refreservation_bytes": 1073741824,
+        "before": {
+          "inodes": {
+            "total": 0,
+            "used": 0
+          },
+          "space": {
+            "total": 5941141504,
+            "used": 970768384
+          }
+        },
+        "during": {
+          "inodes": {
+            "total": 0,
+            "used": 0
+          },
+          "space": {
+            "total": 5944659968,
+            "used": 5944659968
+          }
+        },
+        "host_allocated_bytes": 6428819456,
+        "scope": "physical workload space exhausted; metadata reservation and ZFS slop retained"
+      }
+    },
+    "failed_phase": "full-space reboot with explicit autostart VM",
+    "metadata_available_approx_mib": 672,
+    "last_control_result": {
+      "method": "POST",
+      "path": "/restart",
+      "body": null,
+      "http_status": 504,
+      "response": {
+        "error": {
+          "code": "timeout",
+          "message": "Incus readiness timed out; inspect serial.log, then stop/start to recover"
+        }
+      }
+    }
+  },
+  "vm_full_space_recovery": {
+    "status": "passed",
+    "offline_clone": ".integration/zq8-vm-full-preserved",
+    "stopped_disk_growth_gib": {
+      "before": 7,
+      "after": 8
+    },
+    "pool_guid": "12013223106127235492",
+    "container_volume_checksum": "19d8f8018a75f88fde206a602706e533d41abb1d0421682579503517dbc9dc02  /mnt/volume/data",
+    "vm_root_checksum": "08a57d0f6925478b2b918ec4fdfc18683cd55f9288100dd8c70d3908a76b8288  /root/zfs-proof",
+    "snapshots_and_clone_markers_preserved": true,
+    "known_filler_removed_via_incus": true,
+    "vm_stopped_and_autostart_disabled": true,
+    "artifact": ".integration/zfs-vm-full-recovery-checks.json"
+  },
+  "startup_headroom": {
+    "root_cause": "Incus 7.0.1 synchronous autostart before waitready; full pool left VM config dataset with quota but zero available space",
+    "not_oom": true,
+    "memory_available_kib_during_failed_boot": 3701176,
+    "vm_error": "symlink incus-agent /var/lib/incus/virtual-machines/zq-6304b2de-vm/config/lxd-agent: no space left on device",
+    "container_error": "Failed to create credentials directory: no such file or directory",
+    "autostart_retry": "3 attempts, 5 second delay, synchronous before readiness",
+    "readiness_timeout_seconds_reproduced": 420,
+    "upstream_zfs_reserve_space": "accepted but did not set companion refreservation; full zvol volsize reservation is not viable",
+    "policy": {
+      "arc_max_bytes": 536870912,
+      "metadata_refreservation_bytes": 1073741824,
+      "metadata_minimum_available_bytes": 268435456,
+      "vm_config_refreservation_bytes": 134217728,
+      "container_root_refreservation_bytes": 33554432,
+      "vm_zvol_refreservation_bytes": 268435456,
+      "fresh_minimum_memory_mib": 4096,
+      "fresh_minimum_data_disk_gib": 4
+    },
+    "proof": {
+      "clone_growth_gib": {
+        "before": 7,
+        "after": 8
+      },
+      "filler_deleted": false,
+      "original_preserved_clone_modified": false,
+      "readiness_seconds": 27,
+      "pool_guid": "12013223106127235492",
+      "vm_root_checksum": "08a57d0f6925478b2b918ec4fdfc18683cd55f9288100dd8c70d3908a76b8288",
+      "container_volume_checksum": "19d8f8018a75f88fde206a602706e533d41abb1d0421682579503517dbc9dc02",
+      "vm_running_after_exhausted_reboot": true,
+      "diagnostic_state": ".integration/zqd"
+    }
+  },
+  "production_acceptance_2026_10_06": {
+    "state": ".integration/za",
+    "kernel": "6.18.55-0-lts",
+    "incus": "7.0.1",
+    "zfs": "2.4.4-1",
+    "pool_guid": "18341841560738065233",
+    "filesystem_refreservation": {
+      "metadata": "1G",
+      "za-c": "2G",
+      "za-vol": "128M",
+      "za-vm": "500M",
+      "za-oci": "128M"
+    },
+    "zvol_refreservation": "none",
+    "full_pool_ready_seconds": 27,
+    "growth_pool_total_bytes": [
+      6725787648,
+      7766024192,
+      8805793792
+    ],
+    "nested_vm": "aarch64",
+    "legacy_foreign_hardware": "recorded_2026_10_06",
+    "enospc_vm_file_sha256": "c744ba8e2d9c8b30a8d09a5b525ff6eb279db524b31c8bbe7c81012f7d27b4dd",
+    "guest_memtotal_gate_kib": 3670016,
+    "mixed_workload_disk_minimum": "not qualified at 4 GiB; measured on 8-11 GiB disks",
+    "a15_cleanup_incident": "The agent reported stopping a15 during broad cleanup and restarted its daemon. The user subsequently clarified that they stopped the a15 daemon. Parent verified VM state stopped, then terminated only the agent-restored daemon PID 70353 and confirmed exit. No VM start or disk/config modification was requested. Intended stopped state restored; no restoration question remains. Cleanup deviation remains recorded; historical a15 disk hashes are not proven."
+  },
+  "historical_2026_10_05": {
+    "note": "Dated 2026-10-05 snapshot only. pending and repository_validation here are not the current task or validation status.",
+    "pending": [
+      "production groups 2-5 including identity, classification, measured resource policy and new hardware acceptance"
+    ],
+    "repository_validation": {
+      "canonical": "Integration/scripts/check.sh",
+      "swift_tests": 50,
+      "guest_tests": 12,
+      "openspec_items": 7,
+      "hardware_is_separate": true,
+      "coderabbit": {
+        "scope": "uncommitted changes including nonignored untracked files",
+        "reviewed_files": 14,
+        "initial_status": "review_completed",
+        "initial_findings": {
+          "minor": 2
+        },
+        "resolution": "Both findings concern the same help-text mismatch; corrected the pre-growth disk limit from 8 GiB to 7 GiB",
+        "verification_status": "review_completed",
+        "verification_findings": 0
+      },
+      "implementation_checks": {
+        "canonical": "Integration/scripts/check.sh",
+        "swift_tests": 50,
+        "python_tests": 24,
+        "openspec": "7 passed",
+        "coderabbit": {
+          "initial_findings": {
+            "major": 1
+          },
+          "resolution": "recursive zvol listing so VM root reservations apply",
+          "verification_findings": {
+            "minor": 1
+          },
+          "verification_resolution": "qualification runner tests now assert rejected driver/source and that a valid ZFS source reaches launch"
+        },
+        "hardware_acceptance_rerun": "not run; host free space was 14 GiB"
+      }
+    }
+  },
+  "latest_validation": {
+    "recorded_after": "qualification seed literal dedent; canonical rerun after that fix",
+    "canonical": "Integration/scripts/check.sh passed, including debug/release builds, formatting and isolated install",
+    "swift_tests": 50,
+    "python_tests": 46,
+    "openspec": "7 passed, 0 failed",
+    "git_diff_check": "passed",
+    "hardware": "recorded on isolated .integration/za, z5, and z6; not a 4 GiB mixed-workload minimum",
+    "a15_cleanup_incident": "The agent reported stopping a15 during broad cleanup and restarted its daemon. The user subsequently clarified that they stopped the a15 daemon. Parent verified VM state stopped, then terminated only the agent-restored daemon PID 70353 and confirmed exit. No VM start or disk/config modification was requested. Intended stopped state restored; no restoration question remains. Cleanup deviation remains recorded; historical a15 disk hashes are not proven.",
+    "coderabbit": {
+      "reviewed_files": 27,
+      "scope": "uncommitted changes including nonignored untracked files",
+      "first_parent_review": {
+        "outcome": "completed",
+        "finding": "major: preparation guard incorrectly counts diagnostic version strings",
+        "resolution": "exact install/reboot line checks before output preparation, production guard independently checked and rejection regression passed"
+      },
+      "second_parent_review": {
+        "outcome": "completed_with_warnings",
+        "message": "Review completed with unverified findings",
+        "finding": "minor: completed marker without qualified kernel record can rerun provisioning",
+        "resolution": "explicit refusal on missing/empty kernel record; independent behavioral regressions verify no package, storage, preseed or poweroff work"
+      },
+      "seed_indent_fix": "major: main() wrap indented qualification init and nested runcmd under bootcmd; fixed with textwrap.dedent; not a clean-review claim",
+      "clean_review_claimed": false,
+      "additional_review_after_final_minor_fix": true,
+      "historical_14_file_zero_findings_review": "historical_2026_10_05.repository_validation only",
+      "pre_publication_review": {
+        "outcome": "completed_with_warnings",
+        "findings": {
+          "major": 1
+        },
+        "resolution": "qualification multiline literals dedented; regression and independent emitted-YAML validation passed"
+      },
+      "pre_publication_verification_review": {
+        "outcome": "completed",
+        "reviewed_files": 27,
+        "findings": {
+          "minor": 2
+        },
+        "resolution": "task5.4 status and current counts reconciled with independently verified 50 Swift/46 Python checks",
+        "post_documentation_reconciliation_review": "not rerun; no source changes after verification"
+      }
+    },
+    "recorded_at_utc": "2026-10-06T12:22:12Z",
+    "recorded_by": "parent independent pre-publication verification",
+    "task_5_4": "complete; seed-indent fix independently verified; canonical 50 Swift/46 Python, strict OpenSpec 7/7",
+    "task_5_3": "complete after user clarification and restoration of intended stopped daemon state; incident retained",
+    "emitted_seed_verification": {
+      "actual_prepare_main": "mocked image/ISO operations, no hardware",
+      "yaml_parse": "passed",
+      "bootcmd_runcmd": "top-level, expected command arrays",
+      "write_files": 6,
+      "init_shebang_and_shell_syntax": "passed"
+    }
+  }
+}
