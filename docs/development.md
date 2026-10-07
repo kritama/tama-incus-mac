@@ -39,7 +39,7 @@ Swift and native swift-format come from the selected Xcode toolchain. Hardware a
 
 ```sh
 swift build -Xswiftc -warnings-as-errors
-swift test -Xswiftc -warnings-as-errors
+swift test --no-parallel -Xswiftc -warnings-as-errors
 swift build -c release -Xswiftc -warnings-as-errors
 swift format format --in-place --recursive Package.swift Sources Tests
 swift format lint --strict --recursive Package.swift Sources Tests
@@ -129,6 +129,8 @@ python3 Integration/scripts/relay-stress.py \
 ```
 
 Host relays use nonblocking readiness notifications with at most 64 KiB buffered per direction. A fatal listener failure exits the entire guest helper so OpenRC can restart it; transient accept failures retry. Guest health becomes available only after the relay listener starts.
+
+Swift tests run with explicit `--no-parallel` so unrelated subprocess fixture startup does not consume another test's short deadline on CI. Concurrency and cancellation tests still launch their own concurrent work and keep their original timing assertions.
 
 Unit tests never boot VMs. `Integration/scripts/check.sh` runs debug/release builds, Swift tests, strict formatting, shell syntax, Python compilation and guest-listener regression tests. GitHub Actions runs these and pinned OpenSpec strict validation on the `xcode-27` macOS ARM64 runner. Hardware acceptance stays opt-in on a physical supported Mac with the virtualization entitlement; hosted CI success does not establish hardware acceptance.
 

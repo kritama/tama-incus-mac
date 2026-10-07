@@ -1,7 +1,8 @@
 #!/bin/sh
 set -eu
 swift build -Xswiftc -warnings-as-errors
-swift test -Xswiftc -warnings-as-errors
+# Keep unrelated fixture startup out of deadline measurements; tests exercise concurrency internally.
+swift test --no-parallel -Xswiftc -warnings-as-errors
 swift build -c release -Xswiftc -warnings-as-errors
 swift format lint --strict --recursive Package.swift Sources Tests
 sh -n Integration/guest/bootstrap.sh

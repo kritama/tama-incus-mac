@@ -8,7 +8,7 @@ Requires Apple Silicon, macOS 15+ and Swift 6.4. One SwiftPM library (`Macus`) a
 
 ```sh
 swift build -Xswiftc -warnings-as-errors
-swift test -Xswiftc -warnings-as-errors
+swift test --no-parallel -Xswiftc -warnings-as-errors
 swift build -c release -Xswiftc -warnings-as-errors
 swift format format --in-place --recursive Package.swift Sources Tests
 swift format lint --strict --recursive Package.swift Sources Tests

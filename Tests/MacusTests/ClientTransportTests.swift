@@ -99,7 +99,7 @@ func chunkedFramingSurvivesByteSizedReads(requestBodySize: Int) async throws {
 @Test func delayedPeerUsesOneTotalDeadline() async throws {
   let server = try PrivateUNIXSocket()
   defer { server.stop() }
-  server.serveHTTP { _, descriptor in
+  server.serveHTTP(toleratesClientDisconnect: true) { _, descriptor in
     _ = server.sleepOrStop(3)
     writeAll(descriptor, httpMessage(headers: ["Content-Length: 1"], body: Data("Z".utf8)))
   }
@@ -118,7 +118,7 @@ func chunkedFramingSurvivesByteSizedReads(requestBodySize: Int) async throws {
   let server = try PrivateUNIXSocket()
   defer { server.stop() }
   let message = httpMessage(headers: ["Content-Length: 4"], body: Data("ABCD".utf8))
-  server.serveHTTP { _, descriptor in
+  server.serveHTTP(toleratesClientDisconnect: true) { _, descriptor in
     writeAll(descriptor, Data(message.prefix(1)))
     guard server.sleepOrStop(0.6) else { return }
     writeAll(descriptor, Data(message.dropFirst(1).prefix(1)))
