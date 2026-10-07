@@ -75,3 +75,11 @@ The installer now refuses symlinked bin directories, symlinked executable destin
 Canonical checks passed with 50 Swift tests and 7 Python tests (4 guest bridge checks and 3 acceptance-runner regressions), strict formatting, release builds and isolated installation. All 6 strict OpenSpec items passed. Read-only real-client acceptance against the already-ready isolated appliance also passed: the default was `local` both before and after setup, registration and connectivity succeeded, and repeated setup was idempotent. The appliance and existing installation were untouched; no host Homebrew installation or new lifecycle gate ran.
 
 CodeRabbit CLI completed an uncommitted review of all five implementation/spec/test changes with zero findings. This follow-up addresses the three current GitHub review comments; the added documentation records the independently checked evidence.
+
+## Macus rename — 2026-10-06
+
+`macus` now combines foreground serving, host capabilities and the former tim client commands in one executable; the Swift library is `Macus`. Earlier dual-executable descriptions and reports above record historical runs and are superseded for current installation instructions. Existing default state paths and persistent reset/guest identifiers remain compatible.
+
+Canonical `Integration/scripts/check.sh` passed: warnings-as-errors debug/release builds, 51 Swift tests, strict formatting, guest shell/Python syntax, 46 Python tests and an isolated signed single-binary install. Strict OpenSpec validation passed all 8 items. A separately signed debug `macus serve` was run against a disposable `/private/tmp` state directory: the control socket returned API version 1 and absent state, selected `MACUS_STATE_DIR` over legacy `TIM_STATE_DIR`, created no guest disks and terminated gracefully. No VM was booted and no hardware acceptance of the renamed binary is claimed.
+
+Local diff review verified that runtime/configuration fields and the persisted reset marker remain compatible, and current command/module/installer names agree. CodeRabbit authentication succeeded, but automatic approval review rejected uploading the source diff without explicit user authorization; no remote review result is claimed.

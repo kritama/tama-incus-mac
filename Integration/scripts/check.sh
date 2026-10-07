@@ -12,7 +12,7 @@ sh -n Integration/guest/tama-bootstrap.initd
 sh -n Integration/qualification/zfs-storage.sh
 sh -n Packaging/install-local.sh
 sh -n Integration/scripts/test-install.sh
-python3 -m py_compile Integration/guest/bridge.py Integration/scripts/prepare-appliance.py Integration/scripts/verify-appliance.py Integration/scripts/acceptance.py Integration/scripts/storage_contract.py Integration/scripts/relay-stress.py Integration/scripts/tim-acceptance.py
+python3 -m py_compile Integration/guest/bridge.py Integration/scripts/prepare-appliance.py Integration/scripts/verify-appliance.py Integration/scripts/acceptance.py Integration/scripts/storage_contract.py Integration/scripts/relay-stress.py Integration/scripts/macus-acceptance.py
 python3 -m py_compile Integration/qualification/prepare-zfs.py Integration/qualification/run-zfs.py
 python3 -m unittest discover -s Integration/tests -v
 sh Integration/scripts/test-install.sh

@@ -19,12 +19,12 @@ Use `mise exec -- openspec ...` for planning and implementation commands, includ
 
 ```sh
 mise exec -- openspec list
-mise exec -- openspec status --change tim-client --json
-mise exec -- openspec instructions apply --change tim-client --json
+mise exec -- openspec status --change rename-to-macus --json
+mise exec -- openspec instructions apply --change rename-to-macus --json
 mise exec -- openspec validate --all --strict --no-interactive
 ```
 
-The status and apply examples target the current `tim-client` change; substitute the active change name for later work.
+The status and apply examples target the current `rename-to-macus` change; substitute the active change name for later work.
 
 The canonical checks remain:
 
@@ -43,24 +43,24 @@ swift test -Xswiftc -warnings-as-errors
 swift build -c release -Xswiftc -warnings-as-errors
 swift format format --in-place --recursive Package.swift Sources Tests
 swift format lint --strict --recursive Package.swift Sources Tests
-codesign --force --sign - --entitlements Packaging/virtualization.entitlements .build/debug/tama-incus-mac
-.build/debug/tama-incus-mac capabilities
-.build/debug/tim --help
+codesign --force --sign - --entitlements Packaging/virtualization.entitlements .build/debug/macus
+.build/debug/macus capabilities
+.build/debug/macus --help
 ```
 
 VZ requires `com.apple.security.virtualization` on the daemon executable. Development signing is ad hoc. Production signing/notarization is a future release task. Apple APIs detect unsupported hardware/policy; nested support is never inferred from the model name.
 
-## tim client
+## Macus command
 
-`tim` is the thin local client built by this same SwiftPM package. It is not a separate product or repository. It controls the outer runtime and can configure the standard Incus CLI. Workload commands belong to `incus`, not `tim`. Invocation and transport limits are in [the CLI reference](cli.md).
+`macus` is the single command built by this SwiftPM package. `serve` runs the foreground daemon; runtime commands control the outer VM and client setup configures the standard Incus CLI. Workload commands belong to `incus`. Invocation and transport limits are in [the CLI reference](cli.md).
 
-Local source installation requires Swift. It builds both release executables, ad-hoc signs and verifies them, then installs them together:
+Local source installation requires Swift. It builds the release executable, ad-hoc signs and verifies it, then installs it:
 
 ```sh
 Packaging/install-local.sh --prefix /absolute/isolated/prefix
 ```
 
-The daemon receives the virtualization entitlement; tim does not. The command does not create runtime state or install a launch agent. Ad-hoc development signatures are not notarized production artifacts. A future release package or formula must include both tools and real checksums; none is published here.
+The unified executable receives the virtualization entitlement for serve mode. The command does not create runtime state or install a launch agent. Ad-hoc development signatures are not notarized production artifacts. A future release package or formula must include macus and real checksums; none is published here.
 
 ## Git Flow
 
@@ -91,7 +91,7 @@ python3 Integration/scripts/verify-appliance.py \
 python3 Integration/scripts/prepare-appliance.py \
   --root-disk .integration/cache/verified-alpine/disk.raw \
   --output .integration/appliance --appliance-id alpine-3.24.2-incus-v1
-.build/debug/tama-incus-mac serve --state-dir "$PWD/.integration/state"
+.build/debug/macus serve --state-dir "$PWD/.integration/state"
 ```
 
 Verification uses an isolated GnuPG keyring and pins the official cloud signer fingerprint `F26ADFADBAE702EF7AF637459DA7EF23BFFCDF22`. It refuses checksum/signature mismatches, unexpected archive members and replacement of a different existing raw image. Preparation records archive provenance and the raw SHA-256 in the manifest, and uses macOS `hdiutil` for the NoCloud ISO. Output and source must be on the same volume for the immutable raw hard link. No qcow conversion is used.

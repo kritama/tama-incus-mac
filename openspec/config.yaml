@@ -1,7 +1,7 @@
 schema: spec-driven
 context: |
   Native macOS-only Swift 6 service using Apple Virtualization.framework directly.
-  SwiftPM has one library, a minimal native daemon and a thin tim client executable. Incus is the canonical workload API.
+  SwiftPM has one Macus library and one minimal macus executable for foreground serving and local client commands. Incus is the canonical workload API.
   Host owns only outer VM lifecycle and local integration. No external VM runtime,
-  SSH, GUI, workload orchestration, or server-side Incus operation translation. tim controls the outer runtime and may configure the standard Incus CLI; all workload operations remain standard incus client operations. ARM64 and macOS 15+.
+  SSH, GUI, workload orchestration, or server-side Incus operation translation. macus controls the outer runtime and may configure the standard Incus CLI; all workload operations remain standard incus client operations. ARM64 and macOS 15+.
   Actual guest acceptance must be recorded separately from unit test success.

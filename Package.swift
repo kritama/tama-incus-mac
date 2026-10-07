@@ -2,18 +2,16 @@
 import PackageDescription
 
 let package = Package(
-  name: "tama-incus-mac",
+  name: "macus",
   platforms: [.macOS(.v15)],
   products: [
-    .library(name: "TamaIncusMac", targets: ["TamaIncusMac"]),
-    .executable(name: "tama-incus-mac", targets: ["tama-incus-mac"]),
-    .executable(name: "tim", targets: ["tim"]),
+    .library(name: "Macus", targets: ["Macus"]),
+    .executable(name: "macus", targets: ["MacusCommand"]),
   ],
   targets: [
-    .target(name: "TamaIncusMac"),
-    .executableTarget(name: "tama-incus-mac", dependencies: ["TamaIncusMac"]),
-    .executableTarget(name: "tim", dependencies: ["TamaIncusMac"]),
-    .testTarget(name: "TamaIncusMacTests", dependencies: ["TamaIncusMac", "tim"]),
+    .target(name: "Macus"),
+    .executableTarget(name: "MacusCommand", dependencies: ["Macus"]),
+    .testTarget(name: "MacusTests", dependencies: ["Macus", "MacusCommand"]),
   ],
   swiftLanguageModes: [.v6]
 )
