@@ -56,7 +56,7 @@ public final class SocketDescriptor: @unchecked Sendable {
 /// Blocking socket operations run on GCD rather than occupying Swift's cooperative executor.
 public enum SocketIO {
   private static let queue = DispatchQueue(
-    label: "com.kritama.macus.io", attributes: .concurrent)
+    label: "com.upmaru.macus.io", attributes: .concurrent)
   public static func run<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T
   {
     try await withCheckedThrowingContinuation { continuation in

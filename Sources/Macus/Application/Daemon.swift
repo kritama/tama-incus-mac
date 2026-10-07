@@ -24,7 +24,7 @@ public enum Daemon {
     let service = try RuntimeService(
       driver: VirtualMachineController(), store: StateStore(paths: paths))
     let server = try APIServer(service: service, paths: paths)
-    let logger = Logger(subsystem: "com.kritama.macus", category: "daemon")
+    let logger = Logger(subsystem: "com.upmaru.macus", category: "daemon")
     logger.info("Control API: \(paths.controlSocket.path, privacy: .public)")
     signal(SIGTERM, SIG_IGN)
     signal(SIGINT, SIG_IGN)

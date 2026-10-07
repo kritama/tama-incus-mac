@@ -60,6 +60,10 @@ if [ "$1" = info ]; then printf '%s\\n' 'linux-lts-6.18.55-r0'; fi
             output = result.stdout + result.stderr
             recorded = calls.read_text()
             self.assertEqual(result.returncode, 0, output)
+            self.assertIn('MACUS_OBSERVATION v1 stage=kernel_transition state=expected_reboot', output)
+            self.assertLess(
+                output.index('MACUS_OBSERVATION v1 stage=kernel_transition state=expected_reboot'),
+                output.index('TAMA_ZFS_KERNEL_REBOOT_REQUIRED'))
             self.assertIn('TAMA_ZFS_KERNEL_REBOOT_REQUIRED', output)
             self.assertLess(recorded.index('rc-update add tama-bootstrap'), recorded.index('poweroff'))
             self.assertNotIn('rc-update add incusd', recorded)
@@ -74,6 +78,11 @@ if [ "$1" = info ]; then printf '%s\\n' 'linux-lts-6.18.55-r0'; fi
             output = result.stdout + result.stderr
             recorded = calls.read_text()
             self.assertEqual(result.returncode, 0, output + recorded)
+            self.assertIn('MACUS_OBSERVATION v1 stage=packages', output)
+            self.assertIn('MACUS_OBSERVATION v1 stage=storage', output)
+            self.assertIn('MACUS_OBSERVATION v1 stage=incus', output)
+            self.assertIn('MACUS_OBSERVATION v1 stage=ready', output)
+            self.assertLess(output.index('MACUS_OBSERVATION v1 stage=ready'), output.index('TAMA_BOOTSTRAP_READY'))
             self.assertIn('TAMA_BOOTSTRAP_READY', output)
             self.assertNotIn('poweroff', recorded)
             self.assertIn('rc-update add incusd', recorded)
@@ -95,6 +104,7 @@ if [ "$1" = info ]; then printf '%s\\n' 'linux-lts-6.18.55-r0'; fi
                 result, calls = self.run_boot(root, '6.18.55-0-lts')
                 recorded = calls.read_text() if calls.exists() else ''
                 self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn('MACUS_OBSERVATION v1 stage=failed code=kernel_record_missing', result.stderr)
                 self.assertIn('TAMA_BOOTSTRAP_KERNEL_RECORD_MISSING', result.stderr)
                 self.assertNotIn('apk ', recorded)
                 self.assertNotIn('poweroff', recorded)

@@ -22,12 +22,25 @@ public enum MacusCLI {
   public static let defaultRemoteName = "macus"
   public static let readOnlyTimeout = 10
   public static let lifecycleTimeout = 650
+  public static let startTimeout = 1_800
 
   public static func run(
     arguments: [String],
     environment: [String: String] = ProcessInfo.processInfo.environment,
     transport: any LocalHTTPTransport = UnixHTTPClient(),
     streams: MacusStreams = .standard
+  ) async -> Int32 {
+    await run(
+      arguments: arguments, environment: environment, transport: transport, streams: streams,
+      overrides: StartupOverrides())
+  }
+
+  static func run(
+    arguments: [String],
+    environment: [String: String] = ProcessInfo.processInfo.environment,
+    transport: any LocalHTTPTransport = UnixHTTPClient(),
+    streams: MacusStreams = .standard,
+    overrides: StartupOverrides
   ) async -> Int32 {
     let json = requestsJSON(arguments)
     do {
@@ -45,11 +58,14 @@ public enum MacusCLI {
       try await execute(
         invocation.command, directory: directory, timeout: timeout, json: invocation.json,
         environment: environment, transport: transport, runner: ProcessCommandRunner(),
-        streams: streams)
+        streams: streams, overrides: overrides)
       return 0
     } catch let error as UsageError {
       emit(RuntimeError(.invalidRequest, error.message), json: json, streams: streams)
       return 2
+    } catch let error as StartupInterrupted {
+      emitInterrupted(error, json: json, streams: streams)
+      return 130
     } catch let error as RuntimeError {
       emit(error, json: json, streams: streams)
       return arguments.first == "serve" && error.code == .invalidRequest ? 2 : 1
@@ -94,6 +110,13 @@ public enum MacusCLI {
       runtime restart
       doctor
       client setup [--remote NAME] [--set-default] [--incus ABSOLUTE_PATH]
+      start [--remote NAME] [--set-default] [--incus ABSOLUTE_PATH] [--progress auto|plain|none]
+
+    start is the high-level first-use command. It prepares the pinned appliance,
+    activates a per-user background service when needed, creates an absent runtime,
+    waits for live Incus readiness, and registers the standard incus client. It does
+    not install Homebrew or require sudo. serve, runtime, doctor and client setup remain
+    explicit lower-level commands and do not download an appliance or activate a service.
 
     The outer runtime is the Apple VZ appliance. runtime commands and doctor use
     the existing control API and never install software or boot implicitly.
@@ -110,8 +133,12 @@ public enum MacusCLI {
     Selecting a state directory does not create it. Invalid flags fail before
     networking or installation. Timeout is \(readOnlyTimeout) seconds for read-only
     requests and \(lifecycleTimeout) seconds for runtime start, stop, restart and
-    client setup (1...3600). A restart or Homebrew install may need a larger value.
-    Exit status is 0 on success, 1 on operational failure and 2 on invalid arguments.
+    client setup (1...3600). macus start defaults to \(startTimeout) seconds, still within
+    1...3600, and uses one deadline across download, boot, the expected kernel restart and
+    client setup. A restart or Homebrew install may need a larger value.
+    --progress auto animates only on an interactive terminal; plain and JSON avoid cursor
+    escapes. --progress none suppresses progress. Exit status is 0 on success, 1 on
+    operational failure, 2 on invalid arguments and 130 when start is interrupted.
 
     """
   }
@@ -128,6 +155,7 @@ private enum Command {
   case runtimeRestart
   case doctor
   case clientSetup(remote: String, setDefault: Bool, incus: String?)
+  case start(remote: String, setDefault: Bool, incus: String?, progress: ProgressSelection)
 }
 
 private struct Invocation {
@@ -143,7 +171,7 @@ private func requestsJSON(_ arguments: [String]) -> Bool {
     let token = arguments[index]
     if token == "--json" { return true }
     if token == "--timeout" || token == "--state-dir" || token == "--remote"
-      || token == "--incus"
+      || token == "--incus" || token == "--progress"
     {
       index += 2
       continue
@@ -160,6 +188,7 @@ private func isAbsolute(_ path: String) -> Bool {
 private func defaultTimeout(_ command: Command) -> Int {
   switch command {
   case .runtimeStart, .runtimeStop, .runtimeRestart, .clientSetup: MacusCLI.lifecycleTimeout
+  case .start: MacusCLI.startTimeout
   case .runtimeStatus, .doctor: MacusCLI.readOnlyTimeout
   }
 }
@@ -173,6 +202,7 @@ private func parse(_ arguments: [String]) throws -> Invocation {
   var setDefault = false
   var remote: String?
   var incusOverride: String?
+  var progress: String?
   var positionals: [String] = []
   func value(for flag: String) throws -> String {
     guard index + 1 < arguments.count, !arguments[index + 1].hasPrefix("-") else {
@@ -219,6 +249,13 @@ private func parse(_ arguments: [String]) throws -> Invocation {
         throw UsageError(message: "--incus requires an absolute path")
       }
       incusOverride = raw
+    case "--progress":
+      guard progress == nil else { throw UsageError(message: "Duplicate --progress") }
+      let raw = try value(for: "--progress")
+      guard ProgressSelection(rawValue: raw) != nil else {
+        throw UsageError(message: "--progress must be auto, plain or none")
+      }
+      progress = raw
     default:
       if token.hasPrefix("-") { throw UsageError(message: "Unknown flag \(token)") }
       positionals.append(token)
@@ -239,6 +276,10 @@ private func parse(_ arguments: [String]) throws -> Invocation {
   } else if positionals == ["client", "setup"] {
     command = .clientSetup(
       remote: remote ?? MacusCLI.defaultRemoteName, setDefault: setDefault, incus: incusOverride)
+  } else if positionals == ["start"] {
+    command = .start(
+      remote: remote ?? MacusCLI.defaultRemoteName, setDefault: setDefault, incus: incusOverride,
+      progress: ProgressSelection(rawValue: progress ?? "auto") ?? .auto)
   } else if positionals == ["list"] || positionals.first == "show" {
     throw UsageError(
       message:
@@ -255,10 +296,17 @@ private func parse(_ arguments: [String]) throws -> Invocation {
     throw UsageError(message: "--force is only valid with runtime stop")
   }
   if remote != nil || setDefault || incusOverride != nil {
-    if case .clientSetup = command {
-    } else {
+    switch command {
+    case .clientSetup, .start: break
+    default:
       throw UsageError(
-        message: "--remote, --set-default and --incus are only valid with client setup")
+        message: "--remote, --set-default and --incus are only valid with start and client setup")
+    }
+  }
+  if progress != nil {
+    if case .start = command {
+    } else {
+      throw UsageError(message: "--progress is only valid with start")
     }
   }
   return Invocation(
@@ -267,7 +315,8 @@ private func parse(_ arguments: [String]) throws -> Invocation {
 
 private func execute(
   _ command: Command, directory: URL, timeout: Int, json: Bool, environment: [String: String],
-  transport: any LocalHTTPTransport, runner: any LocalCommandRunner, streams: MacusStreams
+  transport: any LocalHTTPTransport, runner: any LocalCommandRunner, streams: MacusStreams,
+  overrides: StartupOverrides
 ) async throws {
   switch command {
   case .runtimeStatus:
@@ -291,13 +340,21 @@ private func execute(
       transport: transport)
     try emitSuccess(response.body, json: json, streams: streams, human: runtimeText)
   case .clientSetup(let remote, let setDefault, let incus):
-    try await clientSetup(
+    let result = try await IncusClientService(
+      runner: runner, streams: streams, environment: environment
+    ).setup(
       remote: remote, setDefault: setDefault, incusOverride: incus, directory: directory,
-      timeout: timeout, json: json, environment: environment, transport: transport, runner: runner,
-      streams: streams)
+      timeout: timeout, transport: transport)
+    let object = clientResultObject(result)
+    streams.writeOutput(json ? try jsonText(object) : renderObject(object))
   case .doctor:
     try await doctor(
       directory: directory, timeout: timeout, json: json, transport: transport, streams: streams)
+  case .start(let remote, let setDefault, let incus, let progress):
+    try await runStart(
+      directory: directory, remote: remote, setDefault: setDefault, incusOverride: incus,
+      progress: progress, timeout: timeout, json: json, environment: environment,
+      transport: transport, runner: runner, streams: streams, overrides: overrides)
   }
 }
 
@@ -310,227 +367,15 @@ private func control(
     socket: socket, method: method, path: path, body: body, timeout: timeout, transport: transport)
 }
 
-private func clientSetup(
-  remote: String, setDefault: Bool, incusOverride: String?, directory: URL, timeout: Int,
-  json: Bool, environment: [String: String], transport: any LocalHTTPTransport,
-  runner: any LocalCommandRunner, streams: MacusStreams
-) async throws {
-  if let incusOverride {
-    guard FileManager.default.isExecutableFile(atPath: incusOverride) else {
-      throw RuntimeError(.invalidConfiguration, "--incus must be an executable file")
-    }
-  }
-  let status = try await readyStatus(
-    directory: directory, timeout: timeout, transport: transport, command: "client setup")
-  let socket = URL(fileURLWithPath: status.incusSocket)
-  try validatePrivateUnixSocket(socket)
-  let resolved = try await resolveIncus(
-    override: incusOverride, environment: environment, timeout: timeout, runner: runner,
-    streams: streams)
-  let address = "unix:\(socket.path)"
-  let previousDefault = try await incusDefault(
-    resolved.executable, environment: environment, timeout: timeout, runner: runner)
-  let remotes = try await incusRemotes(
-    resolved.executable, environment: environment, timeout: timeout, runner: runner)
-  if let existing = remotes[remote] {
-    guard addressesMatch(existing, socket.path) else {
-      throw RuntimeError(
-        .conflict,
-        "Remote \(remote) already points at a different address. macus client setup does not overwrite it."
-      )
-    }
-  } else {
-    try await requireSuccess(
-      executable: resolved.executable, arguments: ["remote", "add", remote, address],
-      environment: environment, timeout: timeout, runner: runner,
-      failure: "incus remote add failed")
-  }
-  var selectedDefault = previousDefault
-  if setDefault {
-    try await requireSuccess(
-      executable: resolved.executable, arguments: ["remote", "switch", remote],
-      environment: environment, timeout: timeout, runner: runner,
-      failure: "incus remote switch failed")
-    selectedDefault = remote
-  } else if let previousDefault {
-    let current = try await incusDefault(
-      resolved.executable, environment: environment, timeout: timeout, runner: runner)
-    if current != previousDefault {
-      try await requireSuccess(
-        executable: resolved.executable, arguments: ["remote", "switch", previousDefault],
-        environment: environment, timeout: timeout, runner: runner,
-        failure: "Cannot restore the previous default remote")
-    }
-    selectedDefault = previousDefault
-  }
-  try await requireSuccess(
-    executable: resolved.executable, arguments: ["list", "\(remote):"],
-    environment: environment, timeout: timeout, runner: runner,
-    failure: "incus list could not use the registered remote")
-  let result: [String: Any] = [
-    "address": address,
-    "connected": true,
-    "default": selectedDefault == remote,
-    "incus": resolved.executable,
-    "installed": resolved.installed,
-    "remote": remote,
+private func clientResultObject(_ result: IncusSetupResult) -> [String: Any] {
+  [
+    "address": result.address,
+    "connected": result.connected,
+    "default": result.isDefault,
+    "incus": result.executable,
+    "installed": result.installed,
+    "remote": result.remote,
   ]
-  if json {
-    streams.writeOutput(try jsonText(result))
-  } else {
-    streams.writeOutput(renderObject(result))
-  }
-}
-
-private struct ResolvedIncus {
-  var executable: String
-  var installed: Bool
-}
-
-private func resolveIncus(
-  override: String?, environment: [String: String], timeout: Int, runner: any LocalCommandRunner,
-  streams: MacusStreams
-) async throws -> ResolvedIncus {
-  if let override { return ResolvedIncus(executable: override, installed: false) }
-  if let found = executable(named: "incus", path: environment["PATH"] ?? "") {
-    return ResolvedIncus(executable: found, installed: false)
-  }
-  guard let brew = brewExecutable(environment: environment) else {
-    throw RuntimeError(
-      .unavailable,
-      "Incus CLI was not found on PATH and Homebrew is not installed. Install Homebrew from https://brew.sh, then rerun macus client setup. macus does not install Homebrew."
-    )
-  }
-  if let existing = try await installedIncus(
-    brew: brew, environment: environment, timeout: timeout, runner: runner)
-  {
-    return ResolvedIncus(executable: existing, installed: false)
-  }
-  streams.writeError(
-    "macus: Incus CLI not found; installing official Homebrew formula incus\n")
-  var brewEnvironment = environment
-  if brewEnvironment["HOMEBREW_NO_AUTO_UPDATE"] == nil {
-    brewEnvironment["HOMEBREW_NO_AUTO_UPDATE"] = "1"
-  }
-  let install = try await runner.run(
-    executable: brew, arguments: ["install", "incus"], environment: brewEnvironment,
-    timeout: timeout)
-  if !install.stderr.isEmpty {
-    let progress = String(decoding: install.stderr, as: UTF8.self)
-    streams.writeError(terminalSafe(String(progress.prefix(4_000))))
-    if !progress.hasSuffix("\n") { streams.writeError("\n") }
-  }
-  guard install.status == 0 else {
-    throw RuntimeError(.io, "Homebrew install of incus failed")
-  }
-  guard
-    let installed = try await installedIncus(
-      brew: brew, environment: brewEnvironment,
-      timeout: timeout, runner: runner)
-  else {
-    throw RuntimeError(
-      .unavailable, "Homebrew installed incus but the executable was not found under its prefix")
-  }
-  return ResolvedIncus(executable: installed, installed: true)
-}
-
-private func installedIncus(
-  brew: String, environment: [String: String], timeout: Int, runner: any LocalCommandRunner
-) async throws -> String? {
-  for arguments in [["--prefix"], ["--prefix", "incus"]] {
-    let result = try await runner.run(
-      executable: brew, arguments: arguments, environment: environment, timeout: timeout)
-    guard result.status == 0,
-      let prefix = String(data: result.stdout, encoding: .utf8)?.trimmingCharacters(
-        in: .whitespacesAndNewlines), isAbsolute(prefix)
-    else { continue }
-    let candidate = URL(fileURLWithPath: prefix).appendingPathComponent("bin/incus").path
-    if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
-  }
-  return nil
-}
-
-private func brewExecutable(environment: [String: String]) -> String? {
-  if let found = executable(named: "brew", path: environment["PATH"] ?? "") { return found }
-  guard environment["MACUS_BREW_FALLBACK"] != "0" else { return nil }
-  for candidate in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"] {
-    if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
-  }
-  return nil
-}
-
-private func executable(named name: String, path: String) -> String? {
-  for directory in path.split(separator: ":") where !directory.isEmpty {
-    let candidate = URL(fileURLWithPath: String(directory)).appendingPathComponent(name).path
-    if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
-  }
-  return nil
-}
-
-private func incusRemotes(
-  _ executable: String, environment: [String: String], timeout: Int, runner: any LocalCommandRunner
-) async throws -> [String: [String]] {
-  let result = try await requireSuccess(
-    executable: executable, arguments: ["remote", "list", "--format", "json"],
-    environment: environment, timeout: timeout, runner: runner, failure: "incus remote list failed"
-  )
-  guard let object = try? JSONSerialization.jsonObject(with: result.stdout) as? [String: Any] else {
-    throw RuntimeError(.io, "incus remote list returned malformed JSON")
-  }
-  var remotes: [String: [String]] = [:]
-  for (name, value) in object {
-    let info = value as? [String: Any]
-    remotes[name] = info?["Addrs"] as? [String] ?? []
-  }
-  return remotes
-}
-
-private func incusDefault(
-  _ executable: String, environment: [String: String], timeout: Int, runner: any LocalCommandRunner
-) async throws -> String? {
-  let result = try await runner.run(
-    executable: executable, arguments: ["remote", "get-default"], environment: environment,
-    timeout: timeout)
-  guard result.status == 0,
-    let text = String(data: result.stdout, encoding: .utf8)?.trimmingCharacters(
-      in: .whitespacesAndNewlines), !text.isEmpty
-  else {
-    throw RuntimeError(
-      .io, "Cannot read the existing Incus default remote; configuration was not changed")
-  }
-  return text
-}
-
-@discardableResult
-private func requireSuccess(
-  executable: String, arguments: [String], environment: [String: String], timeout: Int,
-  runner: any LocalCommandRunner, failure: String
-) async throws -> LocalCommandResult {
-  let result = try await runner.run(
-    executable: executable, arguments: arguments, environment: environment, timeout: timeout)
-  guard result.status == 0 else {
-    let detail = String(decoding: result.stderr, as: UTF8.self).trimmingCharacters(
-      in: .whitespacesAndNewlines)
-    let suffix = detail.isEmpty ? "" : ": \(detail.prefix(500))"
-    throw RuntimeError(.io, "\(failure)\(suffix)")
-  }
-  return result
-}
-
-private func addressesMatch(_ stored: [String], _ socketPath: String) -> Bool {
-  stored.contains { unixSocketPath($0) == socketPath }
-}
-
-private func unixSocketPath(_ address: String) -> String? {
-  if address.hasPrefix("unix://") {
-    let rest = String(address.dropFirst("unix://".count))
-    return rest.hasPrefix("/") ? rest : nil
-  }
-  if address.hasPrefix("unix:") {
-    let rest = String(address.dropFirst("unix:".count))
-    return rest.hasPrefix("/") ? rest : nil
-  }
-  return nil
 }
 
 private func validateRemoteName(_ name: String) throws {
@@ -586,36 +431,6 @@ private func doctor(
   }
 }
 
-private struct ReadyStatus {
-  let apiVersion: Int
-  let state: String
-  let incusSocket: String
-}
-
-private func readyStatus(
-  directory: URL, timeout: Int, transport: any LocalHTTPTransport, command: String
-) async throws -> ReadyStatus {
-  let response = try await control(
-    "GET", "/v1/runtime/status", Data(), directory: directory, timeout: timeout,
-    transport: transport)
-  let object = try jsonObject(response.body)
-  guard let api = jsonInt(object["api_version"]), let state = jsonString(object["state"]),
-    let incus = jsonString(object["incus_socket"]), incus.hasPrefix("/")
-  else { throw RuntimeError(.io, "Malformed runtime status") }
-  guard api == 1 else {
-    throw RuntimeError(
-      .invalidConfiguration,
-      "Incompatible runtime API version \(api); this macus client supports version 1")
-  }
-  guard state == "ready" else {
-    throw RuntimeError(
-      .unavailable,
-      "Runtime is \(state), not ready. macus \(command) does not start the appliance; run macus runtime start"
-    )
-  }
-  return ReadyStatus(apiVersion: api, state: state, incusSocket: incus)
-}
-
 private func readinessError(
   status: [String: Any], capabilities: [String: Any]?, health: [String: Any]?
 ) -> RuntimeError? {
@@ -666,7 +481,7 @@ private func socketURL(_ url: URL) throws -> URL {
   return url
 }
 
-private func responseFailure(status: Int, body: Data) -> RuntimeError {
+func responseFailure(status: Int, body: Data) -> RuntimeError {
   if let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
     let error = object["error"] as? [String: Any], let code = jsonString(error["code"]),
     let message = jsonString(error["message"]), let parsed = RuntimeError.Code(rawValue: code)
@@ -695,6 +510,16 @@ private func emitSuccess(
 ) throws {
   let object = try jsonObject(body)
   streams.writeOutput(json ? try jsonText(object) : human(object))
+}
+
+func emitInterrupted(_ error: StartupInterrupted, json: Bool, streams: MacusStreams) {
+  if json,
+    let text = try? jsonText(["error": ["code": "interrupted", "message": error.message]])
+  {
+    streams.writeError(text)
+    return
+  }
+  streams.writeError("macus: \(terminalSafe(error.message))\n")
 }
 
 private func emit(_ error: RuntimeError, json: Bool, streams: MacusStreams) {
@@ -767,7 +592,7 @@ func terminalSafe(_ value: String) -> String {
   return output
 }
 
-private func jsonObject(_ data: Data) throws -> [String: Any] {
+func jsonObject(_ data: Data) throws -> [String: Any] {
   do {
     let value = try JSONSerialization.jsonObject(with: data)
     guard let object = value as? [String: Any] else {
@@ -787,7 +612,7 @@ private func jsonData(_ object: [String: Any]) throws -> Data {
   }
 }
 
-private func jsonText(_ value: Any) throws -> String {
+func jsonText(_ value: Any) throws -> String {
   let data = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
   guard var text = String(data: data, encoding: .utf8) else {
     throw RuntimeError(.io, "Cannot encode JSON output")
@@ -796,14 +621,14 @@ private func jsonText(_ value: Any) throws -> String {
   return text
 }
 
-private func jsonString(_ value: Any?) -> String? { value as? String }
+func jsonString(_ value: Any?) -> String? { value as? String }
 
-private func jsonInt(_ value: Any?) -> Int? {
+func jsonInt(_ value: Any?) -> Int? {
   guard let number = value as? NSNumber, !isJSONBool(number) else { return nil }
   return number.intValue
 }
 
-private func jsonBool(_ value: Any?) -> Bool? {
+func jsonBool(_ value: Any?) -> Bool? {
   guard let number = value as? NSNumber, isJSONBool(number) else { return nil }
   return number.boolValue
 }

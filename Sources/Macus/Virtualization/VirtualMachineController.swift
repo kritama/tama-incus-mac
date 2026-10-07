@@ -10,7 +10,7 @@ public final class VirtualMachineController: NSObject, VirtualMachineDriver,
   private var machine: VZVirtualMachine?
   private var activity: (any NSObjectProtocol)?
   private var connections: [UUID: VZVirtioSocketConnection] = [:]
-  private let logger = Logger(subsystem: "com.kritama.macus", category: "virtualization")
+  private let logger = Logger(subsystem: "com.upmaru.macus", category: "virtualization")
   public override init() { super.init() }
   public func capabilities() async -> HostCapabilities { CapabilityDetector.detect() }
   public func start(configuration: RuntimeConfiguration, paths: RuntimePaths) async throws {
