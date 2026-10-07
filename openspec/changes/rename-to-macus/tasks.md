@@ -11,3 +11,5 @@
 ## 3. Validation
 
 - [x] 3.1 Run Integration/scripts/check.sh and strict OpenSpec validation, inspect the final diff and run CodeRabbit when available; record results separately from hardware acceptance.
+
+- [x] 3.2 Address Greptile capability stream capture and the failing CI HTTP fixture race; demonstrate failing regressions before fixes and pass canonical checks plus repeated regression runs.

@@ -118,6 +118,19 @@ import Testing
   #expect(try FileManager.default.contentsOfDirectory(atPath: loose.path).isEmpty)
 }
 
+@Test func capabilitiesUsesSuppliedOutputStream() async throws {
+  let output = OutputCapture()
+  let status = await MacusCLI.run(arguments: ["capabilities"], streams: output.streams)
+  #expect(status == 0)
+  let captured = output.contents
+  #expect(captured.error.isEmpty)
+  #expect(captured.output.hasSuffix("\n"))
+  let capabilities = try jsonValue(captured.output)
+  #expect(capabilities["virtualization"] as? String == "apple-vz")
+  #expect(capabilities["platform"] as? String == "darwin")
+  #expect(capabilities["supported"] is Bool)
+}
+
 @Test func unifiedHostCommandsDoNotCreateState() async throws {
   let missing = URL(fileURLWithPath: "/private/tmp/macus-\(UUID().uuidString.prefix(8))")
   let environment = ["MACUS_STATE_DIR": missing.path]
@@ -276,6 +289,11 @@ private final class OutputCapture: @unchecked Sendable {
   private let lock = NSLock()
   private var output = ""
   private var error = ""
+  var contents: (output: String, error: String) {
+    lock.lock()
+    defer { lock.unlock() }
+    return (output, error)
+  }
   var streams: MacusStreams {
     MacusStreams(
       writeOutput: { text in

@@ -36,7 +36,7 @@ public enum MacusCLI {
         return 0
       }
       if arguments.first == "serve" || arguments == ["capabilities"] {
-        try await Daemon.run(arguments: arguments, environment: environment)
+        try await Daemon.run(arguments: arguments, environment: environment, streams: streams)
         return 0
       }
       let invocation = try parse(arguments)

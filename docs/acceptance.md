@@ -83,3 +83,11 @@ CodeRabbit CLI completed an uncommitted review of all five implementation/spec/t
 Canonical `Integration/scripts/check.sh` passed: warnings-as-errors debug/release builds, 51 Swift tests, strict formatting, guest shell/Python syntax, 46 Python tests and an isolated signed single-binary install. Strict OpenSpec validation passed all 8 items. A separately signed debug `macus serve` was run against a disposable `/private/tmp` state directory: the control socket returned API version 1 and absent state, selected `MACUS_STATE_DIR` over legacy `TIM_STATE_DIR`, created no guest disks and terminated gracefully. No VM was booted and no hardware acceptance of the renamed binary is claimed.
 
 Local diff review verified that runtime/configuration fields and the persisted reset marker remain compatible, and current command/module/installer names agree. CodeRabbit authentication succeeded, but automatic approval review rejected uploading the source diff without explicit user authorization; no remote review result is claimed.
+
+## Rename review and CI fixes — 2026-10-07
+
+Greptile CLI reviewed PR #4 at `84049ac` with 4/5 confidence and one P2 finding: host capability output bypassed the public CLI runner's custom streams. Daemon output now uses the supplied `MacusStreams`, including capabilities and help, and the CLI forwards those streams. A capture regression failed before the fix and passes afterward.
+
+The first rename CI run failed in `chunkedFramingSurvivesByteSizedReads` with `Local socket connection failed`. Its raw HTTP fixture responded and closed without first reading the POST request, racing the client's write. The HTTP transport fixtures now consume complete requests before responding and retain descriptor ownership through the handler. The chunked test verifies received method, path and body for both 2-byte and 256 KiB requests; the larger case reproduced the failure before the fix. Production transport behavior and deadlines were preserved.
+
+Canonical checks passed with 52 Swift tests (including both chunked request sizes), 46 Python tests, debug/release builds, strict formatting and an isolated signed install. Both regressions passed 20 consecutive repeated runs. Strict OpenSpec validation passed all 8 items, and diff whitespace checks passed. No guest was booted; hardware acceptance remains separate.

@@ -10,8 +10,7 @@ import Testing
   let body = Data("hello-index".utf8)
   let message = httpMessage(
     headers: ["Content-Length: \(body.count)", "Connection: close"], body: body)
-  server.serve { descriptor in
-    defer { Darwin.close(descriptor) }
+  server.serveHTTP { _, descriptor in
     writeAll(descriptor, Data(message.prefix(8)))
     Thread.sleep(forTimeInterval: 0.05)
     writeAll(descriptor, Data(message.dropFirst(8)))
@@ -22,18 +21,22 @@ import Testing
   #expect(response.body == body)
 }
 
-@Test func chunkedFramingSurvivesByteSizedReads() async throws {
+@Test(arguments: [2, 256 * 1024])
+func chunkedFramingSurvivesByteSizedReads(requestBodySize: Int) async throws {
   let server = try PrivateUNIXSocket()
   defer { server.stop() }
+  let requestBody = Data(repeating: 0x41, count: requestBodySize)
   let raw = Data(
     "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n1;ext=1\r\n!\r\n0\r\nX-Trace: ok\r\n\r\n"
       .utf8)
-  server.serve { descriptor in
-    defer { Darwin.close(descriptor) }
+  server.serveHTTP { request, descriptor in
+    #expect(request.method == "POST")
+    #expect(request.path == "/v1/runtime/stop")
+    #expect(request.body == requestBody)
     for byte in raw { writeAll(descriptor, Data([byte])) }
   }
   let response = try await UnixHTTPClient().request(
-    socket: server.url, method: "POST", path: "/v1/runtime/stop", body: Data("{}".utf8), timeout: 10
+    socket: server.url, method: "POST", path: "/v1/runtime/stop", body: requestBody, timeout: 10
   )
   #expect(response.status == 200)
   #expect(response.body == Data("hello!".utf8))
@@ -42,15 +45,7 @@ import Testing
 @Test func connectionCloseWithoutLength() async throws {
   let server = try PrivateUNIXSocket()
   defer { server.stop() }
-  server.serve { descriptor in
-    defer { Darwin.close(descriptor) }
-    var incoming = Data()
-    var buffer = [UInt8](repeating: 0, count: 1024)
-    while incoming.range(of: Data([0x0d, 0x0a, 0x0d, 0x0a])) == nil {
-      let count = Darwin.read(descriptor, &buffer, buffer.count)
-      if count <= 0 { return }
-      incoming.append(buffer, count: count)
-    }
+  server.serveHTTP { _, descriptor in
     writeAll(descriptor, Data("HTTP/1.0 200 OK\r\nConnection: close\r\n\r\nbye".utf8))
   }
   let response = try await UnixHTTPClient().request(
@@ -75,8 +70,7 @@ import Testing
   for message in cases {
     let server = try PrivateUNIXSocket()
     defer { server.stop() }
-    server.serve { descriptor in
-      defer { Darwin.close(descriptor) }
+    server.serveHTTP { _, descriptor in
       writeAll(descriptor, message)
     }
     await #expect(throws: RuntimeError.self) {
@@ -90,8 +84,7 @@ import Testing
   let server = try PrivateUNIXSocket()
   defer { server.stop() }
   let headers = (0..<20).map { "X-\($0): \(String(repeating: "B", count: 1000))" }
-  server.serve { descriptor in
-    defer { Darwin.close(descriptor) }
+  server.serveHTTP { _, descriptor in
     writeAll(descriptor, httpMessage(headers: headers, body: Data("Z".utf8)))
   }
   do {
@@ -106,8 +99,7 @@ import Testing
 @Test func delayedPeerUsesOneTotalDeadline() async throws {
   let server = try PrivateUNIXSocket()
   defer { server.stop() }
-  server.serve { descriptor in
-    defer { Darwin.close(descriptor) }
+  server.serveHTTP { _, descriptor in
     _ = server.sleepOrStop(3)
     writeAll(descriptor, httpMessage(headers: ["Content-Length: 1"], body: Data("Z".utf8)))
   }
@@ -126,8 +118,7 @@ import Testing
   let server = try PrivateUNIXSocket()
   defer { server.stop() }
   let message = httpMessage(headers: ["Content-Length: 4"], body: Data("ABCD".utf8))
-  server.serve { descriptor in
-    defer { Darwin.close(descriptor) }
+  server.serveHTTP { _, descriptor in
     writeAll(descriptor, Data(message.prefix(1)))
     guard server.sleepOrStop(0.6) else { return }
     writeAll(descriptor, Data(message.dropFirst(1).prefix(1)))

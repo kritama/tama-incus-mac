@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import Testing
 
 @testable import Macus
 
@@ -68,6 +69,21 @@ final class PrivateUNIXSocket: @unchecked Sendable {
         handler(client)
       }
       self.finished.signal()
+    }
+  }
+
+  /// Consume the complete request before responding so close cannot race the client's write.
+  /// SocketDescriptor owns the accepted descriptor; HTTP handlers must not close it themselves.
+  func serveHTTP(_ handler: @escaping @Sendable (HTTPRequest, Int32) -> Void) {
+    serve { descriptor in
+      do {
+        let connection = try SocketDescriptor(descriptor)
+        connection.timeout(seconds: 3)
+        let request = try HTTPRequest.read(from: connection)
+        withExtendedLifetime(connection) { handler(request, descriptor) }
+      } catch {
+        Issue.record("HTTP fixture could not read the request: \(error)")
+      }
     }
   }
 

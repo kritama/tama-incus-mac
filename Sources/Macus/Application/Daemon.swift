@@ -5,14 +5,17 @@ import os
 @MainActor
 public enum Daemon {
   public static func run(
-    arguments: [String], environment: [String: String] = ProcessInfo.processInfo.environment
+    arguments: [String], environment: [String: String] = ProcessInfo.processInfo.environment,
+    streams: MacusStreams = .standard
   ) async throws {
     if arguments == ["capabilities"] {
-      print(String(decoding: try JSON.encoder().encode(CapabilityDetector.detect()), as: UTF8.self))
+      streams.writeOutput(
+        String(decoding: try JSON.encoder().encode(CapabilityDetector.detect()), as: UTF8.self)
+          + "\n")
       return
     }
     if arguments.isEmpty || arguments == ["--help"] {
-      print(MacusCLI.helpText)
+      streams.writeOutput(MacusCLI.helpText)
       return
     }
     let directory = try stateDirectory(arguments: arguments, environment: environment)
