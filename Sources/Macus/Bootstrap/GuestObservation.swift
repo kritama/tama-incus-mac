@@ -75,16 +75,52 @@ enum GuestObservationParser {
     try handle.seek(toOffset: offset)
     let length = Int(min(end - offset, 65_536))
     guard let data = try handle.read(upToCount: length), !data.isEmpty else { return ([], offset) }
-    guard let text = String(data: data, encoding: .utf8) else {
-      return ([], offset + UInt64(data.count))
+    // A chunk boundary is not a line boundary. Bytes already consumed from an
+    // unfinished line stay unfinished until a real newline.
+    let insideLine = try startsInsideLine(url, offset: offset)
+    return scan(data, from: offset, insideLine: insideLine)
+  }
+
+  private static func startsInsideLine(_ url: URL, offset: UInt64) throws -> Bool {
+    guard offset > 0 else { return false }
+    let handle = try FileHandle(forReadingFrom: url)
+    defer { try? handle.close() }
+    try handle.seek(toOffset: offset - 1)
+    guard let previous = try handle.read(upToCount: 1) else { return false }
+    return previous.first != 0x0A
+  }
+
+  private static func scan(
+    _ data: Data, from offset: UInt64, insideLine: Bool
+  ) -> (observations: [GuestObservation], offset: UInt64) {
+    var observations: [GuestObservation] = []
+    var skipping = insideLine
+    var lineStart = data.startIndex
+    var consumed = 0
+    var index = data.startIndex
+    while index < data.endIndex {
+      if data[index] == 0x0A {
+        if !skipping {
+          let line = Data(data[lineStart...index])
+          if let text = String(data: line, encoding: .utf8), let observation = parse(line: text) {
+            observations.append(observation)
+          }
+        }
+        skipping = false
+        let next = data.index(after: index)
+        consumed = data.distance(from: data.startIndex, to: next)
+        lineStart = next
+        index = next
+        continue
+      }
+      index = data.index(after: index)
     }
-    guard let newline = text.lastIndex(of: "\n") else {
-      if data.count >= 512 { return ([], offset + UInt64(data.count)) }
-      return ([], offset)
+    let tail = data.distance(from: lineStart, to: data.endIndex)
+    if skipping || tail >= 1_024 {
+      // Still inside this line. The next read must not parse its suffix.
+      consumed = data.count
     }
-    let complete = text[...newline]
-    let consumed = Data(complete.utf8).count
-    return (parse(text: String(complete)), offset + UInt64(consumed))
+    return (observations, offset + UInt64(consumed))
   }
 
   private static func isToken(_ value: String) -> Bool {

@@ -217,6 +217,7 @@ public actor RuntimeService {
       var restarted = false
       var sawReboot = false
       var offset = try GuestObservationParser.endOffset(store.paths.serialLog)
+      var attemptOffset = offset
       try Task.checkCancellation()
       try await driver.start(configuration: value, paths: store.paths)
       startedAt = Date()
@@ -237,11 +238,32 @@ public actor RuntimeService {
           bootExpectedReboot = true
         }
         if !(await driver.isRunning()) {
-          let again = try GuestObservationParser.read(url: store.paths.serialLog, from: offset)
-          offset = again.offset
-          if again.observations.contains(where: { $0.expectsKernelReboot }) {
-            sawReboot = true
-            bootExpectedReboot = true
+          // VZ can report the guest stopped before the serial file receives the
+          // marker emitted immediately before poweroff. Drain only this attempt.
+          let drainDeadline = min(deadline, ContinuousClock.now.advanced(by: .seconds(15)))
+          while !sawReboot && ContinuousClock.now < drainDeadline {
+            try Task.checkCancellation()
+            guard generation == operationGeneration, state == .starting else {
+              throw CancellationError()
+            }
+            guard ContinuousClock.now < deadline else { break }
+            let end = try GuestObservationParser.endOffset(store.paths.serialLog)
+            if offset < attemptOffset { offset = attemptOffset }
+            if offset >= end {
+              try await Task.sleep(for: .milliseconds(50))
+              continue
+            }
+            let again = try GuestObservationParser.read(url: store.paths.serialLog, from: offset)
+            if again.offset <= offset {
+              try await Task.sleep(for: .milliseconds(50))
+              continue
+            }
+            offset = again.offset
+            if again.observations.contains(where: \.expectsKernelReboot) {
+              sawReboot = true
+              bootExpectedReboot = true
+            }
+            if let phase = again.observations.last?.stage { bootPhase = phase }
           }
           if sawReboot && !restarted {
             try RebootAllowanceStore.consume(paths: store.paths)
@@ -256,7 +278,8 @@ public actor RuntimeService {
             restarted = true
             sawReboot = false
             bootPhase = "expected_reboot"
-            offset = try GuestObservationParser.endOffset(store.paths.serialLog)
+            attemptOffset = try GuestObservationParser.endOffset(store.paths.serialLog)
+            offset = attemptOffset
             try await driver.start(configuration: value, paths: store.paths)
             startedAt = Date()
             continue

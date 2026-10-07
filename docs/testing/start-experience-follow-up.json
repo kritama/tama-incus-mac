@@ -1,0 +1,67 @@
+{
+  "schema": "macus-start-experience-acceptance/v2",
+  "recorded_at": "2026-10-07T11:38:29Z",
+  "claim": "follow-up isolated hardware proof after review fixes; does not rewrite the earlier failure record",
+  "host": {
+    "os": "macOS 27.0.1",
+    "architecture": "arm64",
+    "cpu": "Apple M4 Max"
+  },
+  "source": {
+    "built_from": "/private/tmp/ms7src",
+    "source_copy_removed_before_start": true,
+    "shared_checkout": "/Users/zacksiri/Development/_upmaru/macus",
+    "shared_checkout_renamed_or_deleted": false
+  },
+  "binary": "/private/tmp/ms7f/install/bin/macus",
+  "working_directory": "/private/tmp",
+  "state_directory": "/private/tmp/ms7f/st",
+  "incus_conf": "/private/tmp/ms7f/client",
+  "remote": "macus-acc",
+  "service_label": "com.upmaru.macus.2e81805dc010",
+  "acquisition": {
+    "mode": "fresh download",
+    "downloaded_bytes": 626889284,
+    "result": "acquisition: complete verified",
+    "evidence": "docs are a summary; raw progress is in the ignored /private/tmp/ms7f/logs/start.err"
+  },
+  "guest": {
+    "incus_server": "7.0.1",
+    "expected_reboot_observed": true,
+    "allowance": "consumed"
+  },
+  "client": {
+    "before": "already installed from the earlier authorized Homebrew install",
+    "installed_by_this_start": false,
+    "path": "/opt/homebrew/bin/incus",
+    "homebrew_install_rerun": false
+  },
+  "start": {
+    "ready": true,
+    "connected": true,
+    "live_capabilities": {
+      "vm": true,
+      "nested_virtualization": true,
+      "kvm_claimed_by_nested_guest_boot": false
+    }
+  },
+  "workloads": {
+    "dns": "deb.debian.org resolved from macus-acc:smoke",
+    "marker": "macus-ok",
+    "runtime_restarts": "two immediate macus runtime restart commands returned ready; marker survived; EFI inode 98986454 and data disk inode 98986450 were unchanged",
+    "terminal_close": "a owned PTY session listed the remote and was closed; serve parent remained pid 1 and the runtime stayed ready",
+    "service_restart": "bootout of only com.upmaru.macus.2e81805dc010, then macus start after that job left the domain, bootstrapped the same label and restored the marker. An overlapping start while the previous daemon was still stopping returned conflict and preserved disks.",
+    "repeat_start": "acquisition skipped; service reused",
+    "nested_guest_booted": false
+  },
+  "prior_failures_not_rewritten": {
+    "runtime_restart": "The 2026-10-07T10:54:18Z restart failed with an invalid boot loader while the previous VM still held the EFI store. The product now waits up to 2 seconds for that specific release and does not recreate efi.bin. These two restarts did not need a manual retry.",
+    "launchctl_eio": "The earlier I/O error 5 was a manual launchctl bootstrap immediately after codesign --force replaced the binary of a running job. This follow-up did not replace the binary under a live job and did not use a manual bootstrap. Product macus start bootstrapped the session agent."
+  },
+  "cleanup": {
+    "smoke_deleted": true,
+    "runtime_stopped": true,
+    "session_agent_unloaded": true,
+    "artifacts_retained": "/private/tmp/ms7f"
+  }
+}

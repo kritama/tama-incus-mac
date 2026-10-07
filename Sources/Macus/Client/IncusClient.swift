@@ -293,7 +293,30 @@ func executable(named name: String, path: String) -> String? {
 }
 
 func addressesMatch(_ stored: [String], _ socketPath: String) -> Bool {
-  stored.contains { unixSocketPath($0) == socketPath }
+  let expected = resolvedSocketPath(socketPath)
+  return stored.contains { address in
+    guard let path = unixSocketPath(address) else { return false }
+    return path == socketPath || resolvedSocketPath(path) == expected
+  }
+}
+
+func resolvedSocketPath(_ path: String) -> String {
+  if let resolved = realpath(path, nil) {
+    return stringFromCString(resolved)
+  }
+  // A stopped runtime has no socket yet. Resolve the directory alias anyway so
+  // /tmp and /private/tmp do not look like different remotes.
+  let url = URL(fileURLWithPath: path)
+  guard let parent = realpath(url.deletingLastPathComponent().path, nil) else { return path }
+  return stringFromCString(parent) + "/" + url.lastPathComponent
+}
+
+private func stringFromCString(_ pointer: UnsafeMutablePointer<CChar>) -> String {
+  defer { free(pointer) }
+  var length = 0
+  while pointer[length] != 0 { length += 1 }
+  let bytes = UnsafeBufferPointer(start: pointer, count: length).map { UInt8(bitPattern: $0) }
+  return String(decoding: bytes, as: UTF8.self)
 }
 
 func unixSocketPath(_ address: String) -> String? {

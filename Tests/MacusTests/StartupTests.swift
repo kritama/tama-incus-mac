@@ -5,6 +5,34 @@ import Testing
 
 @testable import Macus
 
+@Test func socketAliasIsNotARemoteConflict() throws {
+  let root = URL(fileURLWithPath: "/tmp/macus-alias-\(UUID().uuidString.prefix(8))")
+  try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: root) }
+  let endpoint = root.appendingPathComponent("incus.sock")
+  let descriptor = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+  #expect(descriptor >= 0)
+  defer { _ = Darwin.close(descriptor) }
+  var address = sockaddr_un()
+  address.sun_family = sa_family_t(AF_UNIX)
+  address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
+  let bytes = Array(endpoint.path.utf8) + [0]
+  withUnsafeMutableBytes(of: &address.sun_path) { $0.copyBytes(from: bytes) }
+  let bound = withUnsafePointer(to: &address) {
+    $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+      Darwin.bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+    }
+  }
+  #expect(bound == 0)
+  let alias = endpoint.path.replacingOccurrences(of: "/private/tmp/", with: "/tmp/")
+  #expect(addressesMatch(["unix:\(endpoint.path)"], alias))
+  #expect(!addressesMatch(["unix:/tmp/elsewhere.sock"], endpoint.path))
+  let absent = root.appendingPathComponent("missing.sock")
+  let absentAlias = absent.path.replacingOccurrences(of: "/private/tmp/", with: "/tmp/")
+  #expect(addressesMatch(["unix:\(absent.path)"], absentAlias))
+  #expect(!FileManager.default.fileExists(atPath: absent.path))
+}
+
 @Test func startupBudgetIsSharedAndCancellationDoesNotResetIt() throws {
   let start = ContinuousClock.now
   let budget = StartupBudget(seconds: 10, now: start)
@@ -215,6 +243,325 @@ import Testing
   #expect(await restarted.startCount == 1)
   #expect(try RebootAllowanceStore.state(paths: fixture.paths) == "consumed")
   #expect(FileManager.default.fileExists(atPath: fixture.paths.dataDisk.path))
+}
+
+@Test func lateCurrentBootMarkerStillAuthorizesOneRestart() async throws {
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  var configuration = fixture.configuration
+  configuration.readinessTimeoutSeconds = 20
+  try StateStore(paths: fixture.paths).save(configuration)
+  try RebootAllowanceStore.ensureAvailable(paths: fixture.paths, catalogID: "test")
+  let driver = FakeVM()
+  await driver.setHealthy(false)
+  let service = try RuntimeService(driver: driver, store: StateStore(paths: fixture.paths))
+  let start = Task { try await service.start() }
+  for _ in 0..<100 {
+    if await driver.running { break }
+    try await Task.sleep(for: .milliseconds(5))
+  }
+  await driver.setRunning(false)
+  try await Task.sleep(for: .seconds(3))
+  try Data("MACUS_OBSERVATION v1 stage=kernel_transition state=expected_reboot\n".utf8).write(
+    to: fixture.paths.serialLog)
+  for _ in 0..<80 {
+    if await driver.startCount >= 2 { break }
+    try await Task.sleep(for: .milliseconds(50))
+  }
+  await driver.setHealthy(true)
+  #expect(try await start.value.state == .ready)
+  #expect(await driver.startCount == 2)
+  #expect(try RebootAllowanceStore.state(paths: fixture.paths) == "consumed")
+}
+
+@Test func untrustedRebootTextDoesNotConsumeTheAllowance() async throws {
+  for marker in [
+    "unrelated diagnostic state=expected_reboot\n",
+    "MACUS_OBSERVATION v2 stage=kernel_transition state=expected_reboot\n",
+    "prefix TAMA_ZFS_KERNEL_REBOOT_REQUIRED\n",
+  ] {
+    let fixture = try Fixture()
+    defer { fixture.clean() }
+    try RebootAllowanceStore.ensureAvailable(paths: fixture.paths, catalogID: "test")
+    let driver = FakeVM()
+    await driver.setHealthy(false)
+    let service = try RuntimeService(driver: driver, store: StateStore(paths: fixture.paths))
+    let start = Task { try await service.start() }
+    for _ in 0..<100 {
+      if await driver.running { break }
+      try await Task.sleep(for: .milliseconds(5))
+    }
+    try Data(marker.utf8).write(to: fixture.paths.serialLog)
+    await driver.setRunning(false)
+    await #expect(throws: RuntimeError.self) { try await start.value }
+    #expect(await driver.startCount == 1)
+    #expect(try RebootAllowanceStore.state(paths: fixture.paths) == "available")
+  }
+}
+
+@Test func oversizedLineSuffixIsNotAnObservation() throws {
+  let root = URL(fileURLWithPath: "/tmp/macus-line-\(UUID().uuidString.prefix(8))")
+  try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: root) }
+  let marker = "MACUS_OBSERVATION v1 stage=kernel_transition state=expected_reboot\n"
+  let legacy = "TAMA_ZFS_KERNEL_REBOOT_REQUIRED\n"
+  let rejected = [
+    String(repeating: "x", count: 65_536) + marker,
+    String(repeating: "x", count: 1_024) + marker,
+    String(repeating: "x", count: 65_536) + legacy,
+  ]
+  for text in rejected {
+    let log = root.appendingPathComponent(UUID().uuidString)
+    try Data(text.utf8).write(to: log)
+    let found = try observations(in: log)
+    let reboot = found.contains { $0.expectsKernelReboot }
+    #expect(!reboot)
+  }
+  let accepted = [
+    String(repeating: "x", count: 65_536) + "\n" + marker,
+    String(repeating: "x", count: 65_536) + "\n" + legacy,
+    String(repeating: "x", count: 1_024) + "\n" + marker,
+  ]
+  for text in accepted {
+    let log = root.appendingPathComponent(UUID().uuidString)
+    try Data(text.utf8).write(to: log)
+    let found = try observations(in: log)
+    let reboot = found.contains { $0.expectsKernelReboot }
+    #expect(reboot)
+  }
+  let incremental = root.appendingPathComponent("incremental.log")
+  try Data(String(repeating: "x", count: 1_024).utf8).write(to: incremental)
+  let first = try GuestObservationParser.read(url: incremental, from: 0)
+  #expect(first.observations.isEmpty)
+  #expect(first.offset == 1_024)
+  let handle = try FileHandle(forWritingTo: incremental)
+  try handle.seekToEnd()
+  try handle.write(contentsOf: Data(marker.utf8))
+  try handle.close()
+  let suffix = try observations(in: incremental)
+  #expect(suffix.allSatisfy { !$0.expectsKernelReboot })
+  let follow = try FileHandle(forWritingTo: incremental)
+  try follow.seekToEnd()
+  try follow.write(contentsOf: Data(marker.utf8))
+  try follow.close()
+  let followed = try observations(in: incremental)
+  #expect(followed.contains { $0.expectsKernelReboot })
+}
+
+private func observations(in log: URL) throws -> [GuestObservation] {
+  var offset: UInt64 = 0
+  var found: [GuestObservation] = []
+  let end = try GuestObservationParser.endOffset(log)
+  var steps = 0
+  while offset < end {
+    let read = try GuestObservationParser.read(url: log, from: offset)
+    if read.offset <= offset {
+      Issue.record("reader did not advance at \(offset)")
+      break
+    }
+    offset = read.offset
+    found.append(contentsOf: read.observations)
+    steps += 1
+    if steps > 8 { break }
+  }
+  return found
+}
+
+@Test func oversizedLineDoesNotAuthorizeRestart() async throws {
+  let marker = "MACUS_OBSERVATION v1 stage=kernel_transition state=expected_reboot\n"
+  for text in [
+    String(repeating: "x", count: 65_536) + marker,
+    String(repeating: "x", count: 1_024) + marker,
+  ] {
+    let fixture = try Fixture()
+    defer { fixture.clean() }
+    var configuration = fixture.configuration
+    configuration.readinessTimeoutSeconds = 2
+    try StateStore(paths: fixture.paths).save(configuration)
+    try RebootAllowanceStore.ensureAvailable(paths: fixture.paths, catalogID: "test")
+    let driver = FakeVM()
+    await driver.setHealthy(false)
+    let service = try RuntimeService(driver: driver, store: StateStore(paths: fixture.paths))
+    let start = Task { try await service.start() }
+    for _ in 0..<100 {
+      if await driver.running { break }
+      try await Task.sleep(for: .milliseconds(5))
+    }
+    try Data(text.utf8).write(to: fixture.paths.serialLog)
+    await driver.setRunning(false)
+    await #expect(throws: RuntimeError.self) { try await start.value }
+    #expect(await driver.startCount == 1)
+    #expect(try RebootAllowanceStore.state(paths: fixture.paths) == "available")
+  }
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  var configuration = fixture.configuration
+  configuration.readinessTimeoutSeconds = 1
+  try StateStore(paths: fixture.paths).save(configuration)
+  try RebootAllowanceStore.ensureAvailable(paths: fixture.paths, catalogID: "test")
+  let driver = FakeVM()
+  await driver.setHealthy(false)
+  let service = try RuntimeService(driver: driver, store: StateStore(paths: fixture.paths))
+  let started = ContinuousClock.now
+  let start = Task { try await service.start() }
+  for _ in 0..<100 {
+    if await driver.running { break }
+    try await Task.sleep(for: .milliseconds(5))
+  }
+  try Data(String(repeating: "x", count: 2_000_000).utf8).write(to: fixture.paths.serialLog)
+  await driver.setRunning(false)
+  await #expect(throws: Error.self) { try await start.value }
+  #expect(ContinuousClock.now - started < .seconds(4))
+  #expect(await driver.startCount == 1)
+  #expect(try RebootAllowanceStore.state(paths: fixture.paths) == "available")
+}
+
+@Test func newlineAfterOversizedLineStillAuthorizesRestart() async throws {
+  for marker in [
+    "MACUS_OBSERVATION v1 stage=kernel_transition state=expected_reboot\n",
+    "TAMA_ZFS_KERNEL_REBOOT_REQUIRED\n",
+  ] {
+    let fixture = try Fixture()
+    defer { fixture.clean() }
+    var configuration = fixture.configuration
+    configuration.readinessTimeoutSeconds = 5
+    try StateStore(paths: fixture.paths).save(configuration)
+    try RebootAllowanceStore.ensureAvailable(paths: fixture.paths, catalogID: "test")
+    let driver = FakeVM()
+    await driver.setHealthy(false)
+    let service = try RuntimeService(driver: driver, store: StateStore(paths: fixture.paths))
+    let start = Task { try await service.start() }
+    for _ in 0..<100 {
+      if await driver.running { break }
+      try await Task.sleep(for: .milliseconds(5))
+    }
+    let text = String(repeating: "x", count: 65_536) + "\n" + marker
+    try Data(text.utf8).write(to: fixture.paths.serialLog)
+    await driver.setRunning(false)
+    for _ in 0..<80 {
+      if await driver.startCount >= 2 { break }
+      try await Task.sleep(for: .milliseconds(50))
+    }
+    await driver.setHealthy(true)
+    #expect(try await start.value.state == .ready)
+    #expect(await driver.startCount == 2)
+    #expect(try RebootAllowanceStore.state(paths: fixture.paths) == "consumed")
+  }
+}
+
+@Test func splitAndBinarySerialStillFindsOnlyAValidMarker() async throws {
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  var configuration = fixture.configuration
+  configuration.readinessTimeoutSeconds = 20
+  try StateStore(paths: fixture.paths).save(configuration)
+  try RebootAllowanceStore.ensureAvailable(paths: fixture.paths, catalogID: "test")
+  let driver = FakeVM()
+  await driver.setHealthy(false)
+  let service = try RuntimeService(driver: driver, store: StateStore(paths: fixture.paths))
+  let start = Task { try await service.start() }
+  for _ in 0..<100 {
+    if await driver.running { break }
+    try await Task.sleep(for: .milliseconds(5))
+  }
+  var noise = Data([0xFF, 0xFE, 0x00, 0x0A])
+  let decoy = Data("unrelated diagnostic state=expected_reboot\n".utf8)
+  while noise.count < 200_000 { noise.append(decoy) }
+  noise.append(Data("MACUS_OBSERVATION v1 stage=kernel_".utf8))
+  try noise.write(to: fixture.paths.serialLog)
+  await driver.setRunning(false)
+  try await Task.sleep(for: .milliseconds(200))
+  let handle = try FileHandle(forWritingTo: fixture.paths.serialLog)
+  try handle.seekToEnd()
+  try handle.write(contentsOf: Data("transition state=expected_reboot\n".utf8))
+  try handle.close()
+  for _ in 0..<80 {
+    if await driver.startCount >= 2 { break }
+    try await Task.sleep(for: .milliseconds(50))
+  }
+  await driver.setHealthy(true)
+  #expect(try await start.value.state == .ready)
+  #expect(await driver.startCount == 2)
+  #expect(try RebootAllowanceStore.state(paths: fixture.paths) == "consumed")
+}
+
+@Test func secondBootDoesNotReuseTheFirstMarker() async throws {
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  var configuration = fixture.configuration
+  configuration.readinessTimeoutSeconds = 8
+  try StateStore(paths: fixture.paths).save(configuration)
+  try RebootAllowanceStore.ensureAvailable(paths: fixture.paths, catalogID: "test")
+  let driver = FakeVM()
+  await driver.setHealthy(false)
+  let service = try RuntimeService(driver: driver, store: StateStore(paths: fixture.paths))
+  let start = Task { try await service.start() }
+  for _ in 0..<100 {
+    if await driver.running { break }
+    try await Task.sleep(for: .milliseconds(5))
+  }
+  try Data("MACUS_OBSERVATION v1 stage=kernel_transition state=expected_reboot\n".utf8).write(
+    to: fixture.paths.serialLog)
+  await driver.setRunning(false)
+  for _ in 0..<80 {
+    if await driver.startCount >= 2 { break }
+    try await Task.sleep(for: .milliseconds(50))
+  }
+  await driver.setRunning(false)
+  do {
+    _ = try await start.value
+    Issue.record("second boot without a new marker became ready")
+  } catch let error as RuntimeError {
+    #expect(error.message.contains("Guest exited before Incus became ready"))
+    #expect(!error.message.contains("another kernel restart"))
+  }
+  #expect(await driver.startCount == 2)
+  #expect(try RebootAllowanceStore.state(paths: fixture.paths) == "consumed")
+  #expect(FileManager.default.fileExists(atPath: fixture.paths.dataDisk.path))
+}
+
+@Test func rebootDrainHonorsCancellationAndDeadline() async throws {
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  var configuration = fixture.configuration
+  configuration.readinessTimeoutSeconds = 1
+  try StateStore(paths: fixture.paths).save(configuration)
+  try RebootAllowanceStore.ensureAvailable(paths: fixture.paths, catalogID: "test")
+  let driver = FakeVM()
+  await driver.setHealthy(false)
+  let service = try RuntimeService(driver: driver, store: StateStore(paths: fixture.paths))
+  let started = ContinuousClock.now
+  let start = Task { try await service.start() }
+  for _ in 0..<100 {
+    if await driver.running { break }
+    try await Task.sleep(for: .milliseconds(5))
+  }
+  var noise = Data()
+  let line = Data((String(repeating: "x", count: 80) + "\n").utf8)
+  while noise.count < 2_000_000 { noise.append(line) }
+  try noise.write(to: fixture.paths.serialLog)
+  await driver.setRunning(false)
+  await #expect(throws: Error.self) { try await start.value }
+  #expect(ContinuousClock.now - started < .seconds(4))
+  #expect(await driver.startCount == 1)
+  #expect(try RebootAllowanceStore.state(paths: fixture.paths) == "available")
+
+  let cancelled = try Fixture()
+  defer { cancelled.clean() }
+  try RebootAllowanceStore.ensureAvailable(paths: cancelled.paths, catalogID: "test")
+  let other = FakeVM()
+  await other.setHealthy(false)
+  let again = try RuntimeService(driver: other, store: StateStore(paths: cancelled.paths))
+  let task = Task { try await again.start() }
+  for _ in 0..<100 {
+    if await other.running { break }
+    try await Task.sleep(for: .milliseconds(5))
+  }
+  await other.setRunning(false)
+  task.cancel()
+  _ = await task.result
+  #expect(await other.startCount == 1)
+  #expect(try RebootAllowanceStore.state(paths: cancelled.paths) == "available")
 }
 
 @Test func staleRebootMarkerDoesNotRestart() async throws {

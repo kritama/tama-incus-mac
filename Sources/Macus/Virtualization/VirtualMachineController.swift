@@ -17,21 +17,44 @@ public final class VirtualMachineController: NSObject, VirtualMachineDriver,
     guard machine == nil || machine?.state == .stopped || machine?.state == .error else {
       throw RuntimeError(.conflict, "VM already active")
     }
-    // Release stopped VZ attachments before reopening EFI and disk files.
+    // Release the previous VM before reopening its EFI store. Virtualization.framework
+    // drops that file lock asynchronously, and validating too soon reports an invalid
+    // boot loader even though the existing store is intact. Do not recreate it.
     closeConnections()
     machine = nil
-    let vm = VZVirtualMachine(
-      configuration: try VirtualMachineConfiguration.make(configuration, paths: paths))
-    vm.delegate = self
-    machine = vm
-    endActivity()
-    activity = ProcessInfo.processInfo.beginActivity(
-      options: .userInitiatedAllowingIdleSystemSleep,
-      reason: "Run user-requested Incus host VM")
-    do { try await vm.start() } catch {
-      endActivity()
-      throw error
+    let releaseDeadline = ContinuousClock.now.advanced(by: .seconds(2))
+    while true {
+      try Task.checkCancellation()
+      do {
+        let vm = try autoreleasepool {
+          try VZVirtualMachine(
+            configuration: VirtualMachineConfiguration.make(configuration, paths: paths))
+        }
+        vm.delegate = self
+        machine = vm
+        endActivity()
+        activity = ProcessInfo.processInfo.beginActivity(
+          options: .userInitiatedAllowingIdleSystemSleep,
+          reason: "Run user-requested Incus host VM")
+        do {
+          try await vm.start()
+          return
+        } catch {
+          endActivity()
+          machine = nil
+          throw error
+        }
+      } catch {
+        guard Self.efiStoreStillAttached(error), ContinuousClock.now < releaseDeadline else {
+          throw error
+        }
+        try await Task.sleep(for: .milliseconds(50))
+      }
     }
+  }
+
+  private static func efiStoreStillAttached(_ error: Error) -> Bool {
+    error.localizedDescription.localizedCaseInsensitiveContains("boot loader is invalid")
   }
   public func requestStop() async throws {
     guard let machine, machine.canRequestStop else {

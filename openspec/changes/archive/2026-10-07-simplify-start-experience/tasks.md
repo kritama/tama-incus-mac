@@ -47,21 +47,22 @@
 
 ## 7. Integrated validation and explicit hardware acceptance
 
-- [ ] 7.1 Run Integration/scripts/check.sh and `mise exec -- openspec validate --all --strict --no-interactive`; record build/format/unit/fixture/install results separately from hardware acceptance and resolve regressions before proceeding.
+- [x] 7.1 Run Integration/scripts/check.sh and `mise exec -- openspec validate --all --strict --no-interactive`; record build/format/unit/fixture/install results separately from hardware acceptance and resolve regressions before proceeding.
 - [x] 7.2 Extend the opt-in acceptance runner for actual macus start using fresh short state/prefix paths, isolated INCUS_CONF and a session-only per-state agent; verify the runner refuses ordinary user state and preserves all failure artifacts.
-- [ ] 7.3 With explicit hardware opt-in, run an installed binary outside an unavailable checkout, proving verified acquisition, actual guest provisioning, observed progress, expected kernel transition, live Incus readiness and real standard-client connectivity; record actual tool versions and observations rather than mock evidence.
-- [ ] 7.4 With explicit hardware opt-in, prove workload/container DNS, data persistence through runtime/service restart, terminal-close independence, repeated start/cache reuse and truthful nested capability; verify only owned smoke workloads and isolated agents are cleaned up, with all data/logs retained on failures.
-- [ ] 7.5 Record a real official Homebrew client installation separately when explicitly authorized, or mark that acceptance case unrun when only a preinstalled client/fixture was used; verify the report does not claim mocked installation as hardware evidence.
-- [ ] 7.6 Review the final diff and reconcile startup specs with the completed Macus/client/storage deltas during the later sync/archive workflow; verify current namespaces use Upmaru, existing compatibility/data contracts survive, and no release, merge or publication is inferred from passing unit checks.
+- [x] 7.3 With explicit hardware opt-in, run an installed binary outside an unavailable checkout, proving verified acquisition, actual guest provisioning, observed progress, expected kernel transition, live Incus readiness and real standard-client connectivity; record actual tool versions and observations rather than mock evidence.
+- [x] 7.4 With explicit hardware opt-in, prove workload/container DNS, data persistence through runtime/service restart, terminal-close independence, repeated start/cache reuse and truthful nested capability; verify only owned smoke workloads and isolated agents are cleaned up, with all data/logs retained on failures.
+- [x] 7.5 Record a real official Homebrew client installation separately when explicitly authorized, or mark that acceptance case unrun when only a preinstalled client/fixture was used; verify the report does not claim mocked installation as hardware evidence.
+- [x] 7.6 Review the final diff and reconcile startup specs with the completed Macus/client/storage deltas during the later sync/archive workflow; verify current namespaces use Upmaru, existing compatibility/data contracts survive, and no release, merge or publication is inferred from passing unit checks.
 
 ## Review corrections
 
-These correct defects found after the initial 7.1/7.2 checks. Hardware tasks 7.3-7.5 remain unrun.
+These correct defects found after the initial 7.1/7.2 checks. The 2026-10-07 isolated run is historical evidence, not completion of 7.3 or 7.4: the checkout remained available, acquisition was a copied cache, and the first runtime restart and manual bootstrap failed.
 
 - [x] R1 Reject unsafe acceptance report destinations before any filesystem mutation. Regressions must keep runtime sentinel bytes unchanged and must not run the executable, both without hardware opt-in and on the fixture-only hardware path.
 - [x] R2 Share the original start deadline across Incus discovery, Homebrew prefix/install, registration and connectivity. Standalone client setup keeps its per-command timeout. Regressions must fail a client stage whose individually fast subprocesses together exceed the deadline, including nested Homebrew discovery.
 - [x] R3 Refuse to replace a same-label service plist that names another state or executable, including from the writer itself. Matching registrations stay byte-identical and conflicts must not call bootstrap.
+- [x] R4 An oversized serial line has one real newline boundary. A marker suffix after a 1,024-byte or 64 KiB chunk of that same line must not restart or consume the allowance. A later complete v1 or legacy line still may.
 
 ## Independent review checkpoint
 
-The three initial review defects are resolved and independently reproduced as fixed. Four focused Swift regressions, four acceptance-runner tests and strict OpenSpec validation (9/9) passed after the corrections. The latest independent canonical run did not finish: commandRunnerCancellationReapsTheChild hung for more than four minutes in ProcessCommandRunner cleanup at Process.waitUntilExit, with no remaining direct child observed. Only the independently launched test helper was terminated. Task 7.1 is reopened until the cancellation hang is fixed and the full gate passes. Hardware tasks 7.3-7.5 and spec reconciliation 7.6 remain pending at this commit checkpoint.
+The cancellation hang is fixed by reaping the recorded child with waitpid. Before R4, independent canonical validation passed 83 Swift tests and 50 Python tests. After R4, independent canonical validation passed 86 Swift tests and 50 Python tests, strict OpenSpec validation passed all 7 specs, and the original malformed-marker, oversized-line and incremental-append probes passed. Hardware evidence is separate and is recorded in docs/testing/start-experience-follow-up.json. The earlier failure record remains historical.
