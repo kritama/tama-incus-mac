@@ -97,9 +97,11 @@ func chunkedFramingSurvivesByteSizedReads(requestBodySize: Int) async throws {
 }
 
 @Test func delayedPeerUsesOneTotalDeadline() async throws {
+  let handlerStarted = HandlerObservation()
   let server = try PrivateUNIXSocket()
   defer { server.stop() }
-  server.serveHTTP(toleratesClientDisconnect: true) { _, descriptor in
+  server.serveHTTP { _, descriptor in
+    handlerStarted.markStarted()
     _ = server.sleepOrStop(3)
     writeAll(descriptor, httpMessage(headers: ["Content-Length: 1"], body: Data("Z".utf8)))
   }
@@ -111,14 +113,17 @@ func chunkedFramingSurvivesByteSizedReads(requestBodySize: Int) async throws {
   } catch let error as RuntimeError {
     #expect(error.code == .timeout)
   }
+  #expect(handlerStarted.didStart)
   #expect(started.duration(to: .now) < .milliseconds(2_200))
 }
 
 @Test func trickledBytesDoNotResetTheDeadline() async throws {
+  let handlerStarted = HandlerObservation()
   let server = try PrivateUNIXSocket()
   defer { server.stop() }
   let message = httpMessage(headers: ["Content-Length: 4"], body: Data("ABCD".utf8))
-  server.serveHTTP(toleratesClientDisconnect: true) { _, descriptor in
+  server.serveHTTP { _, descriptor in
+    handlerStarted.markStarted()
     writeAll(descriptor, Data(message.prefix(1)))
     guard server.sleepOrStop(0.6) else { return }
     writeAll(descriptor, Data(message.dropFirst(1).prefix(1)))
@@ -133,6 +138,7 @@ func chunkedFramingSurvivesByteSizedReads(requestBodySize: Int) async throws {
   } catch let error as RuntimeError {
     #expect(error.code == .timeout)
   }
+  #expect(handlerStarted.didStart)
   #expect(started.duration(to: .now) < .milliseconds(1_800))
 }
 
@@ -223,4 +229,21 @@ func chunkedFramingSurvivesByteSizedReads(requestBodySize: Int) async throws {
   }
   try await Task.sleep(for: .milliseconds(50))
   #expect(server.accepts == 0)
+}
+
+private final class HandlerObservation: @unchecked Sendable {
+  private let lock = NSLock()
+  private var started = false
+
+  func markStarted() {
+    lock.lock()
+    defer { lock.unlock() }
+    started = true
+  }
+
+  var didStart: Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return started
+  }
 }

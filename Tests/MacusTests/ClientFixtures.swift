@@ -74,10 +74,7 @@ final class PrivateUNIXSocket: @unchecked Sendable {
 
   /// Consume the complete request before responding so close cannot race the client's write.
   /// SocketDescriptor owns the accepted descriptor; HTTP handlers must not close it themselves.
-  func serveHTTP(
-    toleratesClientDisconnect: Bool = false,
-    _ handler: @escaping @Sendable (HTTPRequest, Int32) -> Void
-  ) {
+  func serveHTTP(_ handler: @escaping @Sendable (HTTPRequest, Int32) -> Void) {
     serve { descriptor in
       do {
         let connection = try SocketDescriptor(descriptor)
@@ -85,10 +82,7 @@ final class PrivateUNIXSocket: @unchecked Sendable {
         let request = try HTTPRequest.read(from: connection)
         withExtendedLifetime(connection) { handler(request, descriptor) }
       } catch {
-        // Only deadline fixtures permit disconnecting before a complete request.
-        if !toleratesClientDisconnect {
-          Issue.record("HTTP fixture could not read the request: \(error)")
-        }
+        Issue.record("HTTP fixture could not read the request: \(error)")
       }
     }
   }
