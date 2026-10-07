@@ -1,6 +1,6 @@
 # Local API contract
 
-The bundled `tim` client calls the control socket and can register `incus.sock` with the standard Incus CLI. See [the CLI reference](cli.md). It does not add daemon routes or implement workload operations. The daemon serves two owner-only Unix sockets in its state directory, default `~/.tama/incus-mac`. `runtime.sock` controls the outer VM. `incus.sock` carries unmodified Incus HTTP, WebSockets, exec, events and streaming operations. Possession of either socket grants privileged control of the Linux appliance; run clients as the same macOS user. No TCP listener or SSH is used.
+The bundled `macus` client calls the control socket and can register `incus.sock` with the standard Incus CLI. See [the CLI reference](cli.md). It does not add daemon routes or implement workload operations. The daemon serves two owner-only Unix sockets in its state directory, default `~/.tama/incus-mac`. `runtime.sock` controls the outer VM. `incus.sock` carries unmodified Incus HTTP, WebSockets, exec, events and streaming operations. Possession of either socket grants privileged control of the Linux appliance; run clients as the same macOS user. No TCP listener or SSH is used.
 
 ## Runtime API v1
 
@@ -58,8 +58,8 @@ curl --unix-socket "$STATE/incus.sock" http://localhost/1.0
 Configure a standard Unix remote for the macOS Incus CLI, which has no implicit local server. Use a dedicated `INCUS_CONF` directory for test clients:
 
 ```sh
-incus remote add tama-mac "unix:$STATE/incus.sock"
-incus remote switch tama-mac
+incus remote add macus "unix:$STATE/incus.sock"
+incus remote switch macus
 incus list
 ```
 

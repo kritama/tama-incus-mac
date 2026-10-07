@@ -15,14 +15,14 @@ Build, copy and sign a dedicated daemon, then prepare a **new** fixture:
 ```sh
 swift build -Xswiftc -warnings-as-errors
 mkdir -p .integration/zfs-bin
-cp .build/debug/tama-incus-mac .integration/zfs-bin/tama-incus-mac
+cp .build/debug/macus .integration/zfs-bin/macus
 codesign --force --sign - --entitlements Packaging/virtualization.entitlements \
-  .integration/zfs-bin/tama-incus-mac
-codesign --verify --strict .integration/zfs-bin/tama-incus-mac
+  .integration/zfs-bin/macus
+codesign --verify --strict .integration/zfs-bin/macus
 python3 Integration/qualification/prepare-zfs.py \
   --root-disk .integration/cache/verified-alpine/disk.raw \
   --output .integration/zfs-appliance --memory-mib 4096 --data-disk-gib 4
-.integration/zfs-bin/tama-incus-mac serve --state-dir "$PWD/.integration/zfs-state"
+.integration/zfs-bin/macus serve --state-dir "$PWD/.integration/zfs-state"
 ```
 
 The default preparation settings are 4096 MiB RAM and 32 GiB data. The smaller data-disk
