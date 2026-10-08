@@ -6,6 +6,7 @@ Macus output exposes internal field/stage names, dense nested values and raw boo
 
 ## What Changes
 
+- Adopt Noora for human report styling, alerts, tables and startup progress, behind a Macus adapter that preserves stream separation, terminal safety and cancellation behavior.
 - Give every user-facing command a consistent layout: a clear outcome, grouped details with readable labels, explicit supported/unsupported/unknown states, and copyable next commands.
 - Format startup, runtime status/start/stop/restart, doctor, client setup, host capabilities, help and errors. Keep foreground serve in normal scrollback with a concise startup notice and its existing diagnostic logging.
 - Replace the raw startup spinner with a width-aware stage progress bar and readable active-stage text. Show a measured download bar when byte totals are known; show activity and elapsed time during unmeasured waits and expected reboot.
@@ -26,4 +27,4 @@ None; presentation belongs to the existing command and startup capabilities.
 
 ## Impact
 
-Macus library presentation helpers; `Client/MacusCLI.swift`, `Client/MacusStart.swift`, `Client/IncusClient.swift`, `Bootstrap/ProgressRenderer.swift` and `Application/Daemon.swift`; their CLI/renderer tests and executable fixtures; README and acceptance/package scripts that consume capabilities. `Sources/MacusCommand` remains a thin entry point. Use the existing Foundation/Darwin terminal infrastructure without a new dependency or full-screen TUI. This change does not alter VM provisioning, workload behavior, package publication or runtime data. Terminal acceptance is distinct from opt-in guest/hardware acceptance.
+Macus library presentation helpers; `Client/MacusCLI.swift`, `Client/MacusStart.swift`, `Client/IncusClient.swift`, `Bootstrap/ProgressRenderer.swift` and `Application/Daemon.swift`; their CLI/renderer tests and executable fixtures; README and acceptance/package scripts that consume capabilities. Add the pinned Noora product to the Macus library through SwiftPM and commit its resolved dependency graph. `Sources/MacusCommand` remains a thin entry point. Foundation/Darwin remains responsible for stream-specific terminal sizing and Macus signal handling. This change does not alter VM provisioning, workload behavior, package publication or runtime data. Terminal acceptance is distinct from opt-in guest/hardware acceptance.
