@@ -48,6 +48,7 @@ jobs:
             .integration/homebrew-candidate/*.tar.gz
             .integration/homebrew-candidate/*.bottle.json
             .integration/homebrew-candidate/candidate.json
+            .integration/homebrew-candidate/formula.rb.in
             .integration/homebrew-candidate/package-acceptance.json
             .integration/homebrew-candidate/tap/Formula/macus.rb
             .integration/homebrew-candidate/*.log

@@ -75,7 +75,7 @@ def checked_sha(value):
     return value
 
 
-def render(manifest, bottle_root=None, source_url=None):
+def render(manifest, bottle_root=None, source_url=None, template=None):
     bottle = ""
     if manifest.get("bottles"):
         lines = ["  bottle do", f"    root_url {ruby_string(bottle_root or manifest['bottle_root'])}"]
@@ -92,7 +92,7 @@ def render(manifest, bottle_root=None, source_url=None):
             lines.append(f"    sha256 cellar: {cellar}, {tag}: {ruby_string(checked_sha(info['sha256']))}")
         lines.extend(["  end", ""])
         bottle = "\n".join(lines)
-    text = TEMPLATE.read_text()
+    text = (template or TEMPLATE).read_text()
     for key, value in {"SOURCE_URL": ruby_string(source_url or manifest["source_url"]),
                        "VERSION": ruby_string(manifest["version"]),
                        "SOURCE_SHA256": ruby_string(checked_sha(manifest["source_sha256"])),
@@ -103,7 +103,7 @@ def render(manifest, bottle_root=None, source_url=None):
 
 def save(root, manifest):
     write_text(root / "candidate.json", json.dumps(manifest, indent=2) + "\n")
-    write_text(root / "tap/Formula/macus.rb", render(manifest))
+    write_text(root / "tap/Formula/macus.rb", render(manifest, template=root / "formula.rb.in"))
 
 
 def load(root):
@@ -115,6 +115,9 @@ def load(root):
         raise ValueError("Invalid development version")
     if not data["version"].endswith(data["source_commit"][:12]):
         raise ValueError("Candidate version does not identify its source commit")
+    template = safe_path(root / "formula.rb.in")
+    if digest(template) != checked_sha(data["formula_template_sha256"]):
+        raise ValueError("Candidate formula template integrity failed")
     source = root / data["source_file"]
     if source.parent != root or source.is_symlink() or digest(source) != checked_sha(data["source_sha256"]):
         raise ValueError("Candidate source integrity failed")
@@ -139,10 +142,13 @@ def prepare(output, repo=ROOT, stamp=None):
     version = f"0.0.0-dev.{stamp}.{commit[:12]}"
     source = root / f"macus-{version}.tar.gz"
     run(["git", "archive", "--format=tar.gz", f"--prefix=macus-{version}/", "-o", str(source), commit], cwd=repo)
+    template_text = run(["git", "show", f"{commit}:Packaging/homebrew/Formula/macus.rb.in"], cwd=repo) + "\n"
+    write_text(root / "formula.rb.in", template_text)
     (root / "tap/Formula").mkdir(parents=True)
     manifest = {"schema_version": 1, "source_commit": commit, "version": version,
                 "source_file": source.name, "source_url": source.as_uri(),
                 "source_sha256": digest(source), "bottle_root": root.as_uri(),
+                "formula_template_sha256": digest(root / "formula.rb.in"),
                 "signing_mode": "ad-hoc-development", "architecture": platform.machine(),
                 "host_macos": platform.mac_ver()[0], "deployment_target": "15.0",
                 "swift_version": run(["swift", "--version"]), "bottles": {}}
@@ -234,7 +240,7 @@ def build(args):
                 shutil.copyfileobj(source, output)
         if digest(destination) != info["sha256"]:
             raise ValueError("Conflicting bottle URL filename")
-    write_text(tap / "Formula/macus.rb", render(manifest))
+    write_text(tap / "Formula/macus.rb", render(manifest, template=root / "formula.rb.in"))
     run(["brew", "style", FORMULA], log=root / "style.log")
     run(["brew", "audit", "--strict", FORMULA], log=root / "audit.log")
     print(root / "candidate.json")
@@ -248,7 +254,7 @@ def install(args):
     refuse_package_conflict()
     before = passive_snapshot()
     tap = attach_local(root)
-    write_text(tap / "Formula/macus.rb", render(manifest))
+    write_text(tap / "Formula/macus.rb", render(manifest, template=root / "formula.rb.in"))
     run(["brew", "install", "--force-bottle", FORMULA], log=root / "install.log")
     if passive_snapshot() != before:
         raise ValueError("Package installation changed ordinary runtime/client/service state")
@@ -293,7 +299,7 @@ def export(args):
         raise ValueError("Refusing to replace an existing exported formula")
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("x") as output:
-        output.write(render(manifest, args.bottle_root, args.source_url))
+        output.write(render(manifest, args.bottle_root, args.source_url, root / "formula.rb.in"))
 
 
 def main():

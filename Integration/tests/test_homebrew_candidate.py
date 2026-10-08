@@ -22,6 +22,9 @@ class CandidateTests(unittest.TestCase):
                           ["config", "user.email", "fixture@localhost"]):
             candidate.run(["git", *arguments], cwd=repo)
         (repo / "Package.swift").write_text("// fixture\n")
+        template = repo / "Packaging/homebrew/Formula/macus.rb.in"
+        template.parent.mkdir(parents=True)
+        template.write_text(candidate.TEMPLATE.read_text())
         candidate.run(["git", "add", "."], cwd=repo)
         candidate.run(["git", "commit", "--no-gpg-sign", "-m", "Fixture"], cwd=repo)
         return repo
