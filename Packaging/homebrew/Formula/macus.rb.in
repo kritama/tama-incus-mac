@@ -8,7 +8,6 @@ class Macus < Formula
 
 @BOTTLE@
   depends_on arch: :arm64
-  depends_on :macos
   depends_on macos: :sequoia
   depends_on xcode: ["27.0", :build]
 

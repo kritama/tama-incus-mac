@@ -22,11 +22,12 @@ FORMULA = TAP + "/macus"
 
 
 def run(arguments, cwd=None, log=None, timeout=1800):
+    environment = dict(os.environ, HOMEBREW_NO_AUTO_UPDATE="1")
     if log:
         log = safe_path(log)
         with log.open("ab") as output:
             process = subprocess.Popen(arguments, cwd=cwd, stdout=output, stderr=subprocess.STDOUT,
-                                       start_new_session=True)
+                                       start_new_session=True, env=environment)
             try:
                 status = process.wait(timeout=timeout)
             except subprocess.TimeoutExpired:
@@ -41,7 +42,7 @@ def run(arguments, cwd=None, log=None, timeout=1800):
             raise ValueError(f"Command failed ({status}); retained log: {log}")
         return ""
     return subprocess.run(arguments, cwd=cwd, check=True, capture_output=True,
-                          text=True, timeout=timeout).stdout.strip()
+                          text=True, timeout=timeout, env=environment).stdout.strip()
 
 
 def digest(path):
@@ -200,7 +201,6 @@ def build(args):
     require_opt_in(args)
     root, manifest = load(args.candidate)
     refuse_package_conflict()
-    before = passive_snapshot()
     tap = attach_local(root)
     run(["brew", "install", "--build-bottle", FORMULA], log=root / "build.log")
     binary = Path(run(["brew", "--prefix", FORMULA])) / "bin/macus"
