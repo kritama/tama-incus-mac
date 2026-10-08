@@ -4,6 +4,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import hashlib
+import json
+from unittest.mock import patch
 
 FILE = Path(__file__).resolve().parents[1] / "scripts/homebrew-acceptance.py"
 SPEC = importlib.util.spec_from_file_location("homebrew_acceptance", FILE)
@@ -12,6 +15,21 @@ SPEC.loader.exec_module(acceptance)
 
 
 class HomebrewAcceptanceTests(unittest.TestCase):
+    def test_retry_completes_owned_marker_without_duplicate_launch(self):
+        state = Path('/tmp/owned-test/state')
+        value = {'name': 'macus-brew-marker', 'status': 'Running',
+                 'config': {'user.macus.homebrew-acceptance': hashlib.sha256(str(state).encode()).hexdigest()}}
+        with patch.object(acceptance, 'execute', side_effect=[json.dumps([value]), '']) as command:
+            acceptance.ensure_marker('/incus', 'macus-brew:macus-brew-marker', {}, {}, state)
+            calls = [args.args[0] for args in command.call_args_list]
+            self.assertFalse(any('launch' in call for call in calls))
+            self.assertEqual(calls[-1][1], 'exec')
+        value['config'] = {}
+        with patch.object(acceptance, 'execute', return_value=json.dumps([value])) as command:
+            with self.assertRaisesRegex(ValueError, 'unrelated'):
+                acceptance.ensure_marker('/incus', 'macus-brew:macus-brew-marker', {}, {}, state)
+            self.assertEqual(command.call_count, 1)
+
     def test_resume_requires_stop_unload_and_new_candidate(self):
         with self.assertRaisesRegex(ValueError, 'stop and unload'):
             acceptance.require_upgrade({'checks': {}}, {'version': 'new'})

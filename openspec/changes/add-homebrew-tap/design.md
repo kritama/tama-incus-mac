@@ -8,7 +8,7 @@ See `proposal.md` for motivation and the `service-delivery` delta for observable
 
 `macus start` owns the launchd registration. `currentExecutablePath()` in `Sources/Macus/Client/MacusStart.swift` calls `realpath`, so an invocation through Homebrew's bin/opt links becomes a versioned Cellar path. Startup currently compares launchctl executable and argument strings exactly. Removing an old keg can leave a registration pointing at a missing executable. Existing conflict, ownership and isolated-service rules must survive the fix.
 
-The native CI uses the `xcode-27` runner and does not build bottles. There are no local release tags. The user has created `upmaru/homebrew-tap` at `git@github.com:upmaru/homebrew-tap.git`. GitHub metadata verified on 2026-10-08 confirms that it is public and currently has no default branch. Use this existing repository; repository creation is no longer required.
+The native CI uses the `xcode-27` runner and does not build bottles. There are no local release tags. The user has created `upmaru/homebrew-tap` at `git@github.com:upmaru/homebrew-tap.git`. The public tap scaffold is now merged into main through tap PR #1. Use this existing repository; repository creation is no longer required.
 
 ## Goals / Non-Goals
 
@@ -28,7 +28,7 @@ The native CI uses the `xcode-27` runner and does not build bottles. There are n
 
 ### 1. Source formula with Homebrew bottles
 
-Maintain a Ruby `Macus` formula in `Packaging/homebrew/Formula/macus.rb` as the repository's canonical definition. Export the completed formula to the tap without separately maintained install logic. It builds one release executable using SwiftPM, installs it into its keg, applies `Packaging/virtualization.entitlements` after build-time modification, and verifies signature and entitlement. Declare macOS 15+ and ARM64 constraints and the build-only Swift/Xcode prerequisite; fail early with the required compiler version if the selected toolchain cannot parse the package.
+Maintain the Ruby `Macus` formula template in `Packaging/homebrew/Formula/macus.rb.in` as the canonical definition. Candidate generation pins its bytes to the clean source revision and emits an installable `Formula/macus.rb` with measured metadata. Export the completed formula to the tap without separately maintained install logic. It builds one release executable using SwiftPM, installs it into its keg, applies `Packaging/virtualization.entitlements` after build-time modification, and verifies signature and entitlement. Declare macOS 15+ and ARM64 constraints and the build-only Swift/Xcode prerequisite; fail early with the required compiler version if the selected toolchain cannot parse the package.
 
 Build bottles through Homebrew's standard `brew install --build-bottle` and `brew bottle --json` flow. Use the resulting metadata and actual digests rather than hand-constructing archives or hashes. Verify signatures both before packaging and after pouring: any relocation/re-signing behavior must preserve the entitlement. Keep `brew test` limited to installed help, host capabilities and signature checks; it must not start a service or VM. No `service do` stanza in this milestone: caveats point users to `macus start`.
 

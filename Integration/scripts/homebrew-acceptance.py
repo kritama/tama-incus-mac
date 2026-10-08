@@ -59,6 +59,23 @@ def execute(arguments, env, report, timeout=1800):
     return result.stdout.strip()
 
 
+def ensure_marker(incus, instance, env, report, state):
+    token = hashlib.sha256(str(state).encode()).hexdigest()
+    key = "user.macus.homebrew-acceptance"
+    instances = json.loads(execute([incus, "list", instance, "--format=json"], env, report))
+    matches = [value for value in instances if value.get("name") == "macus-brew-marker"]
+    if matches:
+        if len(matches) != 1 or matches[0].get("config", {}).get(key) != token:
+            raise ValueError("Refusing an unrelated existing marker instance")
+        if matches[0].get("status") == "Stopped":
+            execute([incus, "start", instance], env, report)
+    else:
+        execute([incus, "launch", "images:alpine/3.24", instance, "-c", "boot.autostart=true",
+                 "-c", key + "=" + token], env, report)
+    execute([incus, "exec", instance, "--", "sh", "-c",
+             "printf macus-brew-persistence > /root/macus-marker"], env, report)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--candidate", type=Path, required=True)
@@ -114,8 +131,7 @@ def main():
                         raise ValueError("Installed startup did not reach isolated live readiness")
                 execute([incus, "list", remote + ":", "--format=json"], env, report)
                 if args.phase in ("start", "retry-start") and not report["checks"].get("first_and_repeated_start"):
-                    execute([incus, "launch", "images:alpine/3.24", instance, "-c", "boot.autostart=true"], env, report)
-                    execute([incus, "exec", instance, "--", "sh", "-c", "printf macus-brew-persistence > /root/macus-marker"], env, report)
+                    ensure_marker(incus, instance, env, report, state)
                     report["checks"]["first_and_repeated_start"] = True
                 marker = execute([incus, "exec", instance, "--", "cat", "/root/macus-marker"], env, report)
                 if marker != "macus-brew-persistence":

@@ -87,6 +87,18 @@ class CandidateTests(unittest.TestCase):
                 candidate.refuse_package_conflict()
             self.assertEqual(command.call_count, 1)
 
+    def test_cleanup_refuses_foreign_receipt_without_uninstall(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, data = self.prepared(Path(directory))
+            prefix = root / data['version']
+            prefix.mkdir()
+            (prefix / 'INSTALL_RECEIPT.json').write_text(json.dumps({'source': {'tap': 'other/tap'}}))
+            with patch.object(candidate, 'run', return_value=str(prefix)) as command:
+                with self.assertRaisesRegex(ValueError, 'unrelated installed'):
+                    candidate.cleanup(argparse.Namespace(candidate=root, opt_in=True))
+                self.assertEqual(command.call_args_list, [unittest.mock.call(['brew', '--prefix', candidate.FORMULA])])
+            self.assertTrue(prefix.exists())
+
     def test_real_digests_arm64_tags_and_ruby_interpolation(self):
         for value in ("", "0" * 64, "not-a-digest"):
             with self.assertRaises(ValueError):

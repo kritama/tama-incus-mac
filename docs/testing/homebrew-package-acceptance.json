@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "source_commit": "7e071e383d630ffe0a72c019dc8a28af02446dde",
+  "version": "0.0.0-dev.20261008123735.7e071e383d63",
+  "formula": "upmaru/macus-local/macus",
+  "installed_keg": "<homebrew>/Cellar/macus/0.0.0-dev.20261008123735.7e071e383d63",
+  "bottles": {
+    "arm64_golden_gate": {
+      "filename": "macus-0.0.0-dev.20261008123735.7e071e383d63.arm64_golden_gate.bottle.1.tar.gz",
+      "local_filename": "macus--0.0.0-dev.20261008123735.7e071e383d63.arm64_golden_gate.bottle.1.tar.gz",
+      "sha256": "6b29c29fe95ffa8da4747b988dde3ccb3e8bf0a1c05e21aebd9182ecf9bc644b",
+      "cellar": "/opt/homebrew/Cellar"
+    }
+  },
+  "poured_from_bottle": true,
+  "signature_verified": true,
+  "virtualization_entitlement": true,
+  "hardware_ran": false,
+  "host_macos": "27.0.1",
+  "success": true,
+  "scope": "Local Homebrew bottle installation on macOS 27.0.1 ARM64; hardware acceptance separate",
+  "coverage": {
+    "arm64_golden_gate": "verified",
+    "macos_15_26": "no verified bottle; not advertised as toolchain-free"
+  }
+}

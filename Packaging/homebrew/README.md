@@ -54,7 +54,7 @@ Before uninstall, use the same stop/status/bootout sequence, remove only the own
 
 ## Shared export and CI
 
-The PR/manually dispatched candidate workflow builds and pours a local bottle and retains artifacts. It does not publish releases, modify the shared tap or boot a VM. With publication authorization, upload the exact source and single-hyphen URL bottle filenames recorded in `candidate.json` as immutable development assets. Do not replace existing candidate assets.
+The PR/manually dispatched candidate workflow serializes package jobs, builds and pours a local bottle, retains artifacts and cleans up only its candidate-owned package and tap. Cleanup verifies the installed receipt/version and tap origin. Local failed partial installs remain for inspection; explicit package cleanup uses `candidate.py cleanup --opt-in --candidate /absolute/candidate`. Neither mode deletes runtime or Incus data. It does not publish releases, modify the shared tap or boot a VM. With publication authorization, upload the exact source and single-hyphen URL bottle filenames recorded in `candidate.json` as immutable development assets. Do not replace existing candidate assets.
 
 After those HTTPS assets exist, prepare a tap feature PR using:
 
@@ -66,3 +66,5 @@ python3 Packaging/homebrew/candidate.py export --candidate /absolute/candidate \
 ```
 
 Replace uppercase examples with actual generated names. Export checks remote bytes against measured hashes, requires version-specific HTTPS URLs and refuses an existing destination. Macus code PRs target `develop`; tap formula PRs target `main`. Development acceptance is not a stable production release or authorization to finish Git Flow branches.
+
+For repeatable hardware phases, run `Integration/scripts/homebrew-acceptance.py --opt-in --hardware --candidate /absolute/candidate --root /private/tmp/SHORT_FRESH_ROOT --phase start`. It creates isolated state/client configuration and checks first/repeated startup plus a standard Incus workload marker. Run `--phase stop` before changing the package, then `--phase resume` with a different poured candidate. Resume rejects the same version or a missing stop/unload record. After stop/unload/uninstall, `--phase removed` verifies retained data. `retry-start` explicitly retries a retained owned failed fixture without resetting it. The report stays under the test root.
