@@ -12,7 +12,8 @@ class Macus < Formula
   depends_on xcode: ["27.0", :build]
 
   def install
-    system "swift", "build", "-c", "release", "-Xswiftc", "-warnings-as-errors"
+    # Homebrew already sandboxes the build; SwiftPM cannot nest sandbox-exec inside it.
+    system "swift", "build", "--disable-sandbox", "-c", "release", "-Xswiftc", "-warnings-as-errors"
     bin.install ".build/release/macus"
     system "/usr/bin/codesign", "--force", "--sign", "-",
            "--entitlements", "Packaging/virtualization.entitlements", bin/"macus"
