@@ -160,3 +160,10 @@ After daemon crash, durable configuration is loaded as stopped; readiness is nev
 Guest initialization records persistent pending/started markers on a newly formatted data disk. A failure before preseed begins can retry on reboot. If preseed starts and fails or is interrupted, provisioning refuses to replay it automatically; preserve the disk and inspect diagnostics before explicit recovery/reset. Reused disks without pending initialization keep their existing Incus configuration, including custom pool names.
 
 Do not replace root disks in place to upgrade Incus. A future upgrade protocol must back up data, validate guest/helper/Incus schema compatibility, and provide rollback. Local FileVault and account permissions are the v1 host security basis; no Secure Boot/TPM requirement is imposed.
+
+Human CLI presentation uses the exact Noora 0.57.5 SwiftPM release, locked in
+`Package.resolved`. Its library links Rainbow 4.2.2, Logging 1.16.0 and Path
+0.3.8. SwiftPM also resolves ArgumentParser 1.8.2 for Noora's example executable;
+Macus does not link it or replace its parser. Strict Swift 6 debug and release
+builds (`-warnings-as-errors`, Xcode Swift 6.4 toolchain) passed during integration.
+Always inject Macus's signal-neutral terminal and stream pipelines into Noora.

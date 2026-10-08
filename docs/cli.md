@@ -18,7 +18,7 @@ client setup [--remote NAME] [--set-default] [--incus ABSOLUTE_PATH]
 start [--remote NAME] [--set-default] [--incus ABSOLUTE_PATH] [--progress auto|plain|none]
 ```
 
-`macus` and `macus --help` print this contract and exit 0. For client commands, global flags may appear around the command. `macus serve` runs the foreground daemon and accepts only its optional `--state-dir` after `serve`; `macus capabilities` reports host capabilities without contacting the daemon or booting a guest. These two modes do not accept client JSON/timeout flags. `--force` is valid only on `runtime stop`. `--remote`, `--set-default` and `--incus` are valid on `start` and `client setup`. `--progress` is valid only on `start`. `list`, `show` and other workload commands fail before networking or installation. The default remote name is `macus`. `--incus` must be an absolute executable and skips PATH and Homebrew; it is the isolated-acceptance hook.
+`macus` and `macus --help` print this contract and exit 0. For client commands, global flags may appear around the command. `macus serve` runs the foreground daemon and accepts only its optional `--state-dir` after `serve`; `macus capabilities` reports host capabilities without contacting the daemon or booting a guest. Serve does not accept JSON/timeout flags. Capabilities accepts only `--json`, before or after the command; its default output is human-readable. Scripts that previously parsed unflagged capabilities must request `macus capabilities --json` or `macus --json capabilities` to retain the existing HostCapabilities object. `--force` is valid only on `runtime stop`. `--remote`, `--set-default` and `--incus` are valid on `start` and `client setup`. `--progress` is valid only on `start`. `list`, `show` and other workload commands fail before networking or installation. The default remote name is `macus`. `--incus` must be an absolute executable and skips PATH and Homebrew; it is the isolated-acceptance hook.
 
 `start` is the high-level first-use command. It validates the host, entitlement and Incus/Homebrew prerequisite, acquires the pinned Alpine appliance, prepares its seed, activates a per-user background service when no compatible daemon exists, creates an absent runtime, waits through the expected kernel restart, and registers the standard Incus client. `serve`, `runtime`, `doctor` and `client setup` stay explicit lower-level commands. They do not download an appliance or activate a service. `runtime start` still fails when the runtime has not been created and does not provision an absent installation.
 
@@ -49,3 +49,91 @@ The client opens a new nonblocking Unix connection per control request. Headers 
 Local installation from source requires Swift and is documented in [development](development.md) and [packaging](../Packaging/README.md). It installs one release executable with the virtualization entitlement into the prefix and does not install the Incus CLI or a launch agent. `macus client setup` is the explicit later step for the standard Incus CLI. Production signed, notarized or Homebrew delivery of macus remains future work.
 
 `macus` replaces both legacy executable names. The existing state path and persisted formats are retained. New registrations use `macus`; pass `--remote tama-mac` to reuse the earlier default remote.
+
+Human reports use readable labels and explicit Supported, Unsupported and
+Unavailable observations. `doctor` groups Runtime, Host support, Workload support
+and Guest health. Host nesting support is separate from usable workload VM/KVM
+support. Missing live observations are unavailable; only JSON includes the full
+API-extension list. Paths, failure details and next commands are printed in full.
+
+The following are presentation examples based on fixtures, not hardware evidence.
+Spacing and optional Noora table borders depend on terminal width.
+
+```text
+Macus is ready
+
+Runtime
+  Status: Ready
+  State directory: /tmp/macus-demo
+
+Client
+  Connection: Connected
+  Remote: macus
+  Executable: /opt/homebrew/bin/incus
+  Installation: Reused existing client
+
+Service
+  Ownership: Foreground
+  Closing the owning terminal stops the daemon.
+
+Next steps
+  incus list macus:
+```
+
+```text
+Macus runtime: Stopped
+
+Runtime
+  Status: Stopped
+  Uptime: 1m 12s
+  Control socket: /tmp/macus-demo/runtime.sock
+  Incus socket: /tmp/macus-demo/incus.sock
+
+Next steps
+  macus --state-dir /tmp/macus-demo runtime start
+```
+
+```text
+Incus client is connected
+
+Client
+  Connection: Connected
+  Remote: macus
+  Endpoint: unix:/tmp/macus-demo/incus.sock
+  Executable: /opt/homebrew/bin/incus
+  Installation: Reused existing client
+  Default remote: Existing selection preserved
+
+Next steps
+  incus list macus:
+```
+
+A stopped doctor fixture reports `Macus needs attention`, retains the runtime
+status and any last error, labels missing host/workload/guest observations
+Unavailable, and offers `macus --state-dir /tmp/macus-demo runtime start`.
+Incompatible API versions offer `macus --help`; failed or changing runtimes offer
+an explicit status inspection. A healthy fixture reports `Macus is healthy`.
+
+Interactive startup counts **resolved stages out of nine**, counting complete
+and skipped stages once. This is not a time percentage or ETA. Only a successful
+live-ready and connected startup result confirms completion. Acquisition can
+show a separate measured byte percentage when the total is positive; unknown
+length downloads show bytes and elapsed time. Waits name the observed stage and
+expected kernel reboot. Noora's 30-cell download bar is used where it fits;
+compact text or plain output handles narrow, unknown or resized widths.
+
+Illustrative progress (fixtures, not a VM run):
+
+```text
+[skipped] Downloading appliance | existing runtime
+[#####----] 5/9 stages | Waiting for expected kernel reboot (1m 12s)
+Downloading appliance 128.0 MiB / 256.0 MiB, 50% (3s)
+```
+
+Plain mode preserves state/detail transitions immediately and throttles repeated
+byte/elapsed updates to at most one per five seconds. Automatic refresh is
+bounded to ten frames per second. `TERM=dumb`, redirected stderr and JSON use
+plain output, while `NO_COLOR` suppresses optional styling. `--progress none`
+suppresses progress entirely. The active row and cursor are restored before any
+final result or error. Human diagnostic lines escape controls, including embedded
+newlines; bounded Homebrew diagnostics retain their deliberate line boundaries.

@@ -8,12 +8,6 @@ public enum Daemon {
     arguments: [String], environment: [String: String] = ProcessInfo.processInfo.environment,
     streams: MacusStreams = .standard
   ) async throws {
-    if arguments == ["capabilities"] {
-      streams.writeOutput(
-        String(decoding: try JSON.encoder().encode(CapabilityDetector.detect()), as: UTF8.self)
-          + "\n")
-      return
-    }
     if arguments.isEmpty || arguments == ["--help"] {
       streams.writeOutput(MacusCLI.helpText)
       return
@@ -25,6 +19,10 @@ public enum Daemon {
       driver: VirtualMachineController(), store: StateStore(paths: paths))
     let server = try APIServer(service: service, paths: paths)
     let logger = Logger(subsystem: "com.upmaru.macus", category: "daemon")
+    let presentation = HumanPresentation(streams: streams, environment: environment)
+    presentation.heading("Macus is listening")
+    presentation.field("Control socket", paths.controlSocket.path)
+    presentation.text("  This terminal owns the foreground daemon. Closing it stops the daemon.\n")
     logger.info("Control API: \(paths.controlSocket.path, privacy: .public)")
     signal(SIGTERM, SIG_IGN)
     signal(SIGINT, SIG_IGN)

@@ -120,7 +120,7 @@ import Testing
 
 @Test func capabilitiesUsesSuppliedOutputStream() async throws {
   let output = OutputCapture()
-  let status = await MacusCLI.run(arguments: ["capabilities"], streams: output.streams)
+  let status = await MacusCLI.run(arguments: ["capabilities", "--json"], streams: output.streams)
   #expect(status == 0)
   let captured = output.contents
   #expect(captured.error.isEmpty)

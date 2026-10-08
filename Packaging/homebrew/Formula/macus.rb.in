@@ -36,7 +36,7 @@ class Macus < Formula
 
   test do
     assert_match "serve", shell_output("#{bin}/macus --help")
-    assert_match "apple-vz", shell_output("#{bin}/macus capabilities")
+    assert_match "apple-vz", shell_output("#{bin}/macus capabilities --json")
     system "/usr/bin/codesign", "--verify", "--strict", bin/"macus"
     entitlement = Utils.safe_popen_read("/usr/bin/codesign", "-d", "--entitlements", ":-", bin/"macus")
     assert_match "com.apple.security.virtualization", entitlement

@@ -61,7 +61,7 @@ import Testing
     operationID: "op", stage: .serviceActivation, state: .active, elapsedSeconds: 1,
     detail: "launchd")
   let service = plain.render(launch, now: now) ?? ""
-  #expect(service.contains("service_activation: active"))
+  #expect(service.contains("Activating service"))
   #expect(!service.contains("ready"))
   let dumb = ProgressRenderer.resolve(
     selection: .auto, stderrIsTTY: false, term: "dumb", json: false)

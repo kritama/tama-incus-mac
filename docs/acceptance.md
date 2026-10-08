@@ -119,3 +119,14 @@ Two immediate `macus runtime restart` commands returned ready. The workload mark
 The local candidate at source revision `7e071e383d630ffe0a72c019dc8a28af02446dde`, version `0.0.0-dev.20261008123735.7e071e383d63`, passed Homebrew source compilation, formula style/audit/test, bottle generation and a subsequent poured-bottle install on ARM64 macOS 27.0.1. Its installed signature and virtualization entitlement verified, help/capabilities ran outside the checkout, and the install left ordinary runtime/client/service state unchanged. [Package evidence](testing/homebrew-package-acceptance.json) records the measured bottle digest and receipt. This verifies only the `arm64_golden_gate` bottle; macOS 15/26 bottle coverage and remote tap installation are not claimed. Development signing is ad hoc, without notarization.
 
 The separately opted-in installed-bottle hardware run booted a fresh isolated Alpine appliance and consumed its single expected kernel restart, but live Incus readiness did not arrive after the second boot; the retained serial log showed `tama-bootstrap` stopped. The test VM was force-stopped and its owned launchd job unloaded. Its disks/logs were preserved. [Hardware evidence](testing/homebrew-hardware-acceptance.json) explicitly records unsuccessful acceptance. First/repeated ready startup, package-upgrade marker persistence and uninstall retention remain unverified; passing package checks does not complete them. Guest bootstrap repair and artifact publication are pending user scope/authorization decisions.
+
+Readable CLI presentation acceptance is recorded in
+[testing/readable-cli-output-acceptance.json](testing/readable-cli-output-acceptance.json).
+These 21 transcripts come from the signed release executable with isolated Unix
+socket and Incus-client fixtures, under a pseudo-terminal and redirected streams.
+They cover help, host capabilities (both JSON placements), runtime status, doctor,
+startup reuse, JSON, error, timeout, SIGINT exit 130 and foreground serve notices.
+The checks preserve fixture disks/configuration, assert read-only requests for
+inspection, and never boot a VM. They are presentation evidence, separate from
+guest/hardware qualification. The canonical isolated-prefix install check reruns
+`Integration/scripts/presentation-acceptance.py --binary <signed-macus>`.

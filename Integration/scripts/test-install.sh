@@ -53,7 +53,8 @@ codesign --verify --strict "$prefix/bin/macus"
 codesign -d --entitlements :- "$prefix/bin/macus" 2>/dev/null | grep -q 'com.apple.security.virtualization'
 "$prefix/bin/macus" --help | grep -q 'runtime status'
 "$prefix/bin/macus" --help | grep -q 'serve'
-"$prefix/bin/macus" capabilities | grep -q 'apple-vz'
+"$prefix/bin/macus" capabilities --json | grep -q 'apple-vz'
+python3 Integration/scripts/presentation-acceptance.py --binary "$prefix/bin/macus"
 after=$(stat -f '%m %z' "$sentinel/marker")
 test "$before" = "$after"
 if [ "$home_state_absent" -eq 1 ] && [ -e "${HOME}/.tama/incus-mac" ]; then

@@ -192,7 +192,7 @@ def verify_binary(binary):
                             check=True, capture_output=True, text=True)
     if "com.apple.security.virtualization" not in result.stdout + result.stderr:
         raise ValueError("Installed binary is missing its virtualization entitlement")
-    if "serve" not in run([str(binary), "--help"], cwd=binary.parent) or "apple-vz" not in run([str(binary), "capabilities"], cwd=binary.parent):
+    if "serve" not in run([str(binary), "--help"], cwd=binary.parent) or "apple-vz" not in run([str(binary), "capabilities", "--json"], cwd=binary.parent):
         raise ValueError("Installed executable smoke checks failed")
 
 

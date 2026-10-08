@@ -1,0 +1,222 @@
+{
+  "kind": "presentation-fixtures",
+  "hardware_acceptance": false,
+  "vm_booted": false,
+  "transcripts": {
+    "redirected --help": "macus \u2014 native macOS Incus host\n\nUsage: macus [--state-dir ABSOLUTE_PATH] [--json] [--timeout SECONDS] <command>\n\nStartup:\n  start [--remote NAME] [--set-default] [--incus ABSOLUTE_PATH] [--progress auto|plain|none]\n    Prepare the appliance, wait for readiness and connect the Incus client.\n\nInspection:\n  runtime status    Observe the outer runtime.\n  doctor            Diagnose live runtime, host and guest health.\n  capabilities      Report host support; add --json for machine output.\n\nLifecycle:\n  runtime start     Boot an existing appliance.\n  runtime stop [--force]\n  runtime restart\n  serve [--state-dir ABSOLUTE_PATH]    Own the daemon in this terminal.\n\nClient:\n  client setup [--remote NAME] [--set-default] [--incus ABSOLUTE_PATH]\n\nCommon examples:\n  macus start\n  macus runtime status\n  macus doctor --json\n  macus capabilities --json\n  macus --state-dir /tmp/macus-demo start --progress plain\n  macus client setup --remote macus\n\nOptions:\n  --json            Machine results on stdout, errors on stderr.\n  --progress auto|plain|none    Startup progress on stderr.\n  --state-dir ABSOLUTE_PATH    Select existing or isolated state.\n  --timeout SECONDS           Set a bounded deadline.\n\nstart is the high-level first-use command. It prepares the pinned appliance,\nactivates a per-user background service when needed, creates an absent runtime,\nwaits for live Incus readiness, and registers the standard incus client. It does\nnot install Homebrew or require sudo. serve, runtime, doctor and client setup remain\nexplicit lower-level commands and do not download an appliance or activate a service.\n\nThe outer runtime is the Apple VZ appliance. runtime commands and doctor use\nthe existing control API and never install software or boot implicitly.\nWorkload operations belong to the standard incus client. client setup registers\nthat client against the ready runtime socket. The default remote name is\nmacus. --set-default is required to change the selected default.\nIf incus is not on PATH, setup installs the official Homebrew formula incus\nwhen Homebrew is already installed. It does not install Homebrew.\n\nserve runs the foreground daemon; capabilities reports host support without booting.\nServe flags follow serve. Other commands accept global flags around the command.\nState directory: --state-dir, then MACUS_STATE_DIR, then legacy TIM_STATE_DIR,\nthen ~/.tama/incus-mac. The existing default preserves appliance data.\nSelecting a state directory does not create it. Invalid flags fail before\nnetworking or installation. Timeout is 10 seconds for read-only\nrequests and 650 seconds for runtime start, stop, restart and\nclient setup (1...3600). macus start defaults to 1800 seconds, still within\n1...3600, and uses one deadline across download, boot, the expected kernel restart and\nclient setup. A restart or Homebrew install may need a larger value.\n--progress auto animates only on an interactive terminal; plain and JSON avoid cursor\nescapes. --progress none suppresses progress. Exit status is 0 on success, 1 on\noperational failure, 2 on invalid arguments and 130 when start is interrupted.\n",
+    "redirected capabilities": "Macus host capabilities\n\nHost support\n\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502 Observation          \u2502 Status    \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 Apple virtualization \u2502 Supported \u2502\n\u2502 Host nesting         \u2502 Supported \u2502\n\u2502 File sharing         \u2502 Supported \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\n  Platform: darwin\n  Architecture: arm64\n  Virtualization: apple-vz\n\nHost support does not establish guest or workload readiness.\n\nNext steps\n  macus start\n  macus capabilities --json\n",
+    "redirected capabilities --json": "{\"architecture\":\"arm64\",\"nested_virtualization\":true,\"platform\":\"darwin\",\"supported\":true,\"virtiofs\":true,\"virtualization\":\"apple-vz\"}\n",
+    "redirected --json capabilities": "{\"architecture\":\"arm64\",\"nested_virtualization\":true,\"platform\":\"darwin\",\"supported\":true,\"virtiofs\":true,\"virtualization\":\"apple-vz\"}\n",
+    "redirected runtime status": "Macus runtime: Ready\n\nRuntime\n  Status: Ready\n  Uptime: 1m 12s\n  Control socket: /tmp/macus-presentation-fixture/state/runtime.sock\n  Incus socket: /tmp/macus-presentation-fixture/state/incus.sock\n\nNext steps\n  macus --state-dir /tmp/macus-presentation-fixture/state doctor\n",
+    "redirected doctor": "\u2714 Success \n  Macus is healthy \n\nRuntime\n  Status: Ready\n  Uptime: 1m 12s\n  Control socket: /tmp/macus-presentation-fixture/state/runtime.sock\n  Incus socket: /tmp/macus-presentation-fixture/state/incus.sock\n\nHost support\n\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502 Observation          \u2502 Status    \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 Apple virtualization \u2502 Supported \u2502\n\u2502 Host nesting         \u2502 Supported \u2502\n\u2502 File sharing         \u2502 Supported \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\n  Platform: darwin\n  Architecture: arm64\n  Virtualization: apple-vz\n\nWorkload support\n\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502 Observation           \u2502 Status      \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 System containers     \u2502 Supported   \u2502\n\u2502 OCI containers        \u2502 Supported   \u2502\n\u2502 Virtual machines      \u2502 Unsupported \u2502\n\u2502 Nested virtualization \u2502 Supported   \u2502\n\u2502 File sharing          \u2502 Supported   \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\n\nGuest health\n  Protocol: 1\n  Incus version: fixture\n  Guest KVM: Unsupported\n\nNext steps\n  macus --state-dir /tmp/macus-presentation-fixture/state doctor\n",
+    "redirected doctor --json": "{\"capabilities\":{\"architecture\":\"arm64\",\"capabilities\":{\"nested_virtualization\":true,\"oci\":true,\"system_containers\":true,\"virtiofs\":true,\"vm\":false},\"incus\":{\"available\":true,\"version\":\"fixture\"},\"platform\":\"darwin\",\"supported\":true,\"virtualization\":\"apple-vz\"},\"health\":{\"api_extensions\":[\"instance_oci\"],\"incus_version\":\"fixture\",\"kvm\":false,\"protocol_version\":1},\"status\":{\"api_version\":1,\"incus_socket\":\"\\/private\\/tmp\\/macus-present-48g3nz5e\\/state\\/incus.sock\",\"last_error\":null,\"state\":\"ready\",\"uptime_seconds\":72}}\n",
+    "pty --help": "macus \u2014 native macOS Incus host\r\n\r\nUsage: macus [--state-dir ABSOLUTE_PATH] [--json] [--timeout SECONDS] <command>\r\n\r\nStartup:\r\n  start [--remote NAME] [--set-default] [--incus ABSOLUTE_PATH] [--progress auto|plain|none]\r\n    Prepare the appliance, wait for readiness and connect the Incus client.\r\n\r\nInspection:\r\n  runtime status    Observe the outer runtime.\r\n  doctor            Diagnose live runtime, host and guest health.\r\n  capabilities      Report host support; add --json for machine output.\r\n\r\nLifecycle:\r\n  runtime start     Boot an existing appliance.\r\n  runtime stop [--force]\r\n  runtime restart\r\n  serve [--state-dir ABSOLUTE_PATH]    Own the daemon in this terminal.\r\n\r\nClient:\r\n  client setup [--remote NAME] [--set-default] [--incus ABSOLUTE_PATH]\r\n\r\nCommon examples:\r\n  macus start\r\n  macus runtime status\r\n  macus doctor --json\r\n  macus capabilities --json\r\n  macus --state-dir /tmp/macus-demo start --progress plain\r\n  macus client setup --remote macus\r\n\r\nOptions:\r\n  --json            Machine results on stdout, errors on stderr.\r\n  --progress auto|plain|none    Startup progress on stderr.\r\n  --state-dir ABSOLUTE_PATH    Select existing or isolated state.\r\n  --timeout SECONDS           Set a bounded deadline.\r\n\r\nstart is the high-level first-use command. It prepares the pinned appliance,\r\nactivates a per-user background service when needed, creates an absent runtime,\r\nwaits for live Incus readiness, and registers the standard incus client. It does\r\nnot install Homebrew or require sudo. serve, runtime, doctor and client setup remain\r\nexplicit lower-level commands and do not download an appliance or activate a service.\r\n\r\nThe outer runtime is the Apple VZ appliance. runtime commands and doctor use\r\nthe existing control API and never install software or boot implicitly.\r\nWorkload operations belong to the standard incus client. client setup registers\r\nthat client against the ready runtime socket. The default remote name is\r\nmacus. --set-default is required to change the selected default.\r\nIf incus is not on PATH, setup installs the official Homebrew formula incus\r\nwhen Homebrew is already installed. It does not install Homebrew.\r\n\r\nserve runs the foreground daemon; capabilities reports host support without booting.\r\nServe flags follow serve. Other commands accept global flags around the command.\r\nState directory: --state-dir, then MACUS_STATE_DIR, then legacy TIM_STATE_DIR,\r\nthen ~/.tama/incus-mac. The existing default preserves appliance data.\r\nSelecting a state directory does not create it. Invalid flags fail before\r\nnetworking or installation. Timeout is 10 seconds for read-only\r\nrequests and 650 seconds for runtime start, stop, restart and\r\nclient setup (1...3600). macus start defaults to 1800 seconds, still within\r\n1...3600, and uses one deadline across download, boot, the expected kernel restart and\r\nclient setup. A restart or Homebrew install may need a larger value.\r\n--progress auto animates only on an interactive terminal; plain and JSON avoid cursor\r\nescapes. --progress none suppresses progress. Exit status is 0 on success, 1 on\r\noperational failure, 2 on invalid arguments and 130 when start is interrupted.\r\n",
+    "pty capabilities": "Macus host capabilities\r\n\r\nHost support\r\n\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\r\n\u2502 Observation          \u2502 Status    \u2502\r\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\r\n\u2502 Apple virtualization \u2502 Supported \u2502\r\n\u2502 Host nesting         \u2502 Supported \u2502\r\n\u2502 File sharing         \u2502 Supported \u2502\r\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\r\n  Platform: darwin\r\n  Architecture: arm64\r\n  Virtualization: apple-vz\r\n\r\nHost support does not establish guest or workload readiness.\r\n\r\nNext steps\r\n  macus start\r\n  macus capabilities --json\r\n",
+    "pty capabilities --json": "{\"architecture\":\"arm64\",\"nested_virtualization\":true,\"platform\":\"darwin\",\"supported\":true,\"virtiofs\":true,\"virtualization\":\"apple-vz\"}\r\n",
+    "pty --json capabilities": "{\"architecture\":\"arm64\",\"nested_virtualization\":true,\"platform\":\"darwin\",\"supported\":true,\"virtiofs\":true,\"virtualization\":\"apple-vz\"}\r\n",
+    "pty runtime status": "Macus runtime: Ready\r\n\r\nRuntime\r\n  Status: Ready\r\n  Uptime: 1m 12s\r\n  Control socket: /tmp/macus-presentation-fixture/state/runtime.sock\r\n  Incus socket: /tmp/macus-presentation-fixture/state/incus.sock\r\n\r\nNext steps\r\n  macus --state-dir /tmp/macus-presentation-fixture/state doctor\r\n",
+    "pty doctor": "\u2714 Success \r\n  Macus is healthy \r\n\r\nRuntime\r\n  Status: Ready\r\n  Uptime: 1m 12s\r\n  Control socket: /tmp/macus-presentation-fixture/state/runtime.sock\r\n  Incus socket: /tmp/macus-presentation-fixture/state/incus.sock\r\n\r\nHost support\r\n\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\r\n\u2502 Observation          \u2502 Status    \u2502\r\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\r\n\u2502 Apple virtualization \u2502 Supported \u2502\r\n\u2502 Host nesting         \u2502 Supported \u2502\r\n\u2502 File sharing         \u2502 Supported \u2502\r\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\r\n  Platform: darwin\r\n  Architecture: arm64\r\n  Virtualization: apple-vz\r\n\r\nWorkload support\r\n\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\r\n\u2502 Observation           \u2502 Status      \u2502\r\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\r\n\u2502 System containers     \u2502 Supported   \u2502\r\n\u2502 OCI containers        \u2502 Supported   \u2502\r\n\u2502 Virtual machines      \u2502 Unsupported \u2502\r\n\u2502 Nested virtualization \u2502 Supported   \u2502\r\n\u2502 File sharing          \u2502 Supported   \u2502\r\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\r\n\r\nGuest health\r\n  Protocol: 1\r\n  Incus version: fixture\r\n  Guest KVM: Unsupported\r\n\r\nNext steps\r\n  macus --state-dir /tmp/macus-presentation-fixture/state doctor\r\n",
+    "pty doctor --json": "{\"capabilities\":{\"architecture\":\"arm64\",\"capabilities\":{\"nested_virtualization\":true,\"oci\":true,\"system_containers\":true,\"virtiofs\":true,\"vm\":false},\"incus\":{\"available\":true,\"version\":\"fixture\"},\"platform\":\"darwin\",\"supported\":true,\"virtualization\":\"apple-vz\"},\"health\":{\"api_extensions\":[\"instance_oci\"],\"incus_version\":\"fixture\",\"kvm\":false,\"protocol_version\":1},\"status\":{\"api_version\":1,\"incus_socket\":\"\\/private\\/tmp\\/macus-present-48g3nz5e\\/state\\/incus.sock\",\"last_error\":null,\"state\":\"ready\",\"uptime_seconds\":72}}\r\n",
+    "redirected start": "Macus is ready\n\nRuntime\n  Status: Ready\n  State directory: /tmp/macus-present-48g3nz5e/state\n\nClient\n  Connection: Connected\n  Remote: macus\n  Executable: /tmp/macus-presentation-fixture/incus fixture\n  Installation: Reused existing client\n\nService\n  Ownership: Foreground\n  Closing the owning terminal stops the daemon.\n\nWorkload support\n\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502 Observation           \u2502 Status      \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 System containers     \u2502 Supported   \u2502\n\u2502 OCI containers        \u2502 Supported   \u2502\n\u2502 Virtual machines      \u2502 Unsupported \u2502\n\u2502 Nested virtualization \u2502 Supported   \u2502\n\u2502 File sharing          \u2502 Supported   \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\n  Client path guidance: incus is not on PATH. Use /tmp/macus-presentation-fixture/incus fixture or add /tmp/macus-presentation-fixture to PATH. macus does not edit shell profiles.\n\nNext steps\n  '/tmp/macus-presentation-fixture/incus fixture' list macus:\n[active] Checking host (0s)\n[complete] Checking host\n[skipped] Downloading appliance | existing runtime\n[skipped] Verifying appliance\n[skipped] Preparing appliance\n[skipped] Creating runtime\n[active] Activating service (0s)\n[complete] Activating service | foreground\n[active] Provisioning Linux (0s)\n[skipped] Provisioning Linux | already ready\n[complete] Waiting for Incus\n[active] Connecting client (0s)\n[complete] Connecting client\n[complete] 9/9 stages | Macus is ready\n",
+    "pty start": "\u001b[?25l\r\u001b[2K[---------] 0/9 stages | Checking host (0s)\r\u001b[2K[complete] Checking host\r\n[#--------] 1/9 stages | Checking host\r\u001b[2K[skipped] Downloading appliance | existing runtime\r\n[##-------] 2/9 stages | Downloading appliance | existing runtime\r\u001b[2K[skipped] Verifying appliance\r\n[###------] 3/9 stages | Verifying appliance\r\u001b[2K[skipped] Preparing appliance\r\n[####-----] 4/9 stages | Preparing appliance\r\u001b[2K[skipped] Creating runtime\r\n[#####----] 5/9 stages | Creating runtime\r\u001b[2K[#####----] 5/9 stages | Activating service (0s)\r\u001b[2K[complete] Activating service | foreground\r\n[######---] 6/9 stages | Activating service | foreground\r\u001b[2K[######---] 6/9 stages | Provisioning Linux (0s)\r\u001b[2K[skipped] Provisioning Linux | already ready\r\n[#######--] 7/9 stages | Provisioning Linux | already ready\r\u001b[2K[complete] Waiting for Incus\r\n[########-] 8/9 stages | Waiting for Incus\r\u001b[2K[########-] 8/9 stages | Connecting client (0s)\r\u001b[2K[complete] Connecting client\r\n[########-] 8/9 stages | Connecting client\r\u001b[2K\u001b[?25h[complete] 9/9 stages | Macus is ready\r\nMacus is ready\r\n\r\nRuntime\r\n  Status: Ready\r\n  State directory: /tmp/macus-present-48g3nz5e/state\r\n\r\nClient\r\n  Connection: Connected\r\n  Remote: macus\r\n  Executable: /tmp/macus-presentation-fixture/incus fixture\r\n  Installation: Reused existing client\r\n\r\nService\r\n  Ownership: Foreground\r\n  Closing the owning terminal stops the daemon.\r\n\r\nWorkload support\r\n\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\r\n\u2502 Observation           \u2502 Status      \u2502\r\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\r\n\u2502 System containers     \u2502 Supported   \u2502\r\n\u2502 OCI containers        \u2502 Supported   \u2502\r\n\u2502 Virtual machines      \u2502 Unsupported \u2502\r\n\u2502 Nested virtualization \u2502 Supported   \u2502\r\n\u2502 File sharing          \u2502 Supported   \u2502\r\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\r\n  Client path guidance: incus is not on PATH. Use /tmp/macus-presentation-fixture/incus fixture or add /tmp/macus-presentation-fixture to PATH. macus does not edit shell profiles.\r\n\r\nNext steps\r\n  '/tmp/macus-presentation-fixture/incus fixture' list macus:\r\n",
+    "redirected start --json --progress none": "{\"capabilities\":{\"architecture\":\"arm64\",\"capabilities\":{\"nested_virtualization\":true,\"oci\":true,\"system_containers\":true,\"virtiofs\":true,\"vm\":false},\"incus\":{\"available\":true,\"version\":\"fixture\"},\"platform\":\"darwin\",\"supported\":true,\"virtualization\":\"apple-vz\"},\"connected\":true,\"incus\":\"\\/private\\/tmp\\/macus-present-48g3nz5e\\/incus fixture\",\"installed\":false,\"next_commands\":[\"'\\/private\\/tmp\\/macus-present-48g3nz5e\\/incus fixture' list macus:\"],\"path_guidance\":\"incus is not on PATH. Use \\/private\\/tmp\\/macus-present-48g3nz5e\\/incus fixture or add \\/private\\/tmp\\/macus-present-48g3nz5e to PATH. macus does not edit shell profiles.\",\"ready\":true,\"remote\":\"macus\",\"service_ownership\":\"foreground\",\"state_directory\":\"\\/tmp\\/macus-present-48g3nz5e\\/state\"}\n",
+    "pty start error": "\u001b[?25l\r\u001b[2K[---------] 0/9 stages | Checking host (0s)\r\u001b[2K[complete] Checking host\r\n[#--------] 1/9 stages | Checking host\r\u001b[2K[skipped] Downloading appliance | existing runtime\r\n[##-------] 2/9 stages | Downloading appliance | existing runtime\r\u001b[2K[skipped] Verifying appliance\r\n[###------] 3/9 stages | Verifying appliance\r\u001b[2K[skipped] Preparing appliance\r\n[####-----] 4/9 stages | Preparing appliance\r\u001b[2K[skipped] Creating runtime\r\n[#####----] 5/9 stages | Creating runtime\r\u001b[2K[#####----] 5/9 stages | Activating service (0s)\r\u001b[2K[complete] Activating service | foreground\r\n[######---] 6/9 stages | Activating service | foreground\r\u001b[2K[######---] 6/9 stages | Provisioning Linux (0s)\r\u001b[2K[######---] 6/9 stages | Waiting for Incus (0s)\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (0s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (0s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (0s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (0s) | Installing guest packages\r\u001b[2K[failed] Provisioning Linux | Fixture boot failed; disks preserved\r\n[######---] 6/9 stages | Provisioning Linux | Fixture boot failed; disks preserved\r\u001b[2K\u001b[?25h\u2716 Error \r\n  Macus failed (io) \r\n  Fixture boot failed; disks preserved\r\n\r\nNext steps\r\n  macus --state-dir /tmp/macus-presentation-fixture/state runtime status\r\n  macus --state-dir /tmp/macus-presentation-fixture/state runtime stop\r\n",
+    "pty start timeout": "\u001b[?25l\r\u001b[2K[---------] 0/9 stages | Checking host (0s)\r\u001b[2K[failed] Checking host | Startup deadline exceeded\r\n[---------] 0/9 stages | Checking host | Startup deadline exceeded\r\u001b[2K\u001b[?25h\u2716 Error \r\n  Macus failed (timeout) \r\n  Startup deadline exceeded\r\n\r\nNext steps\r\n  macus --state-dir /tmp/macus-presentation-fixture/state runtime status\r\n  macus --state-dir /tmp/macus-presentation-fixture/state runtime stop\r\n",
+    "pty start cancellation": "\u001b[?25l\r\u001b[2K[---------] 0/9 stages | Checking host (0s)\r\u001b[2K[complete] Checking host\r\n[#--------] 1/9 stages | Checking host\r\u001b[2K[skipped] Downloading appliance | existing runtime\r\n[##-------] 2/9 stages | Downloading appliance | existing runtime\r\u001b[2K[skipped] Verifying appliance\r\n[###------] 3/9 stages | Verifying appliance\r\u001b[2K[skipped] Preparing appliance\r\n[####-----] 4/9 stages | Preparing appliance\r\u001b[2K[skipped] Creating runtime\r\n[#####----] 5/9 stages | Creating runtime\r\u001b[2K[#####----] 5/9 stages | Activating service (0s)\r\u001b[2K[complete] Activating service | foreground\r\n[######---] 6/9 stages | Activating service | foreground\r\u001b[2K[######---] 6/9 stages | Provisioning Linux (0s)\r\u001b[2K[######---] 6/9 stages | Waiting for Incus (0s)\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (0s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (0s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (0s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (0s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (0s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (0s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (0s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (0s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (0s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (0s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (1s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (1s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (1s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (1s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (1s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (1s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (1s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (1s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (1s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (1s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (2s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (2s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (2s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (2s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (2s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (2s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (2s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (2s) | Installing guest packages\r\u001b[2K[######---] 6/9 stages | Waiting for expected kernel reboot (2s) | Installing guest packages\r\u001b[2K[complete] Provisioning Linux\r\n[#######--] 7/9 stages | Provisioning Linux\r\u001b[2K[complete] Waiting for Incus\r\n[########-] 8/9 stages | Waiting for Incus\r\u001b[2K[########-] 8/9 stages | Connecting client (3s)\r\u001b[2K\u001b[?25h\u2716 Error \r\n  Macus failed (interrupted) \r\n  Start interrupted. Observed runtime state is ready. The guest was not force-stopped; run macus runtime stop if you need to stop it. Disks and logs were preserved.\r\n\r\nNext steps\r\n  macus --state-dir /tmp/macus-presentation-fixture/state runtime status\r\n  macus --state-dir /tmp/macus-presentation-fixture/state runtime stop\r\n",
+    "redirected serve": "Macus is listening\n  Control socket: /tmp/macus-presentation-fixture/serve/runtime.sock\n  This terminal owns the foreground daemon. Closing it stops the daemon.\n"
+  },
+  "requests": [
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/capabilities"
+    ],
+    [
+      "GET",
+      "/v1/runtime/health"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/capabilities"
+    ],
+    [
+      "GET",
+      "/v1/runtime/health"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/capabilities"
+    ],
+    [
+      "GET",
+      "/v1/runtime/health"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/capabilities"
+    ],
+    [
+      "GET",
+      "/v1/runtime/health"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/progress"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/health"
+    ],
+    [
+      "GET",
+      "/v1/runtime/capabilities"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/progress"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/health"
+    ],
+    [
+      "GET",
+      "/v1/runtime/capabilities"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/progress"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/health"
+    ],
+    [
+      "GET",
+      "/v1/runtime/capabilities"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/progress"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "POST",
+      "/v1/runtime/start"
+    ],
+    [
+      "GET",
+      "/v1/runtime/progress"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/progress"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/progress"
+    ],
+    [
+      "POST",
+      "/v1/runtime/start"
+    ],
+    [
+      "GET",
+      "/v1/runtime/progress"
+    ],
+    [
+      "GET",
+      "/v1/runtime/progress"
+    ],
+    [
+      "GET",
+      "/v1/runtime/health"
+    ],
+    [
+      "GET",
+      "/v1/runtime/capabilities"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ],
+    [
+      "GET",
+      "/v1/runtime/status"
+    ]
+  ]
+}

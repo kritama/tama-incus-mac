@@ -4,13 +4,18 @@ public struct MacusStreams: Sendable {
   public var writeOutput: @Sendable (String) -> Void
   public var writeError: @Sendable (String) -> Void
 
+  public var stdoutIsTTY = false
+  public var stderrIsTTY = false
+
   public static let standard = MacusStreams(
     writeOutput: { text in
       try? FileHandle.standardOutput.write(contentsOf: Data(text.utf8))
     },
     writeError: { text in
       try? FileHandle.standardError.write(contentsOf: Data(text.utf8))
-    }
+    },
+    stdoutIsTTY: isatty(STDOUT_FILENO) == 1,
+    stderrIsTTY: isatty(STDERR_FILENO) == 1
   )
 }
 
@@ -48,12 +53,17 @@ public enum MacusCLI {
         streams.writeOutput(helpText)
         return 0
       }
-      if arguments.first == "serve" || arguments == ["capabilities"] {
+      if arguments.first == "serve" {
         try await Daemon.run(arguments: arguments, environment: environment, streams: streams)
         return 0
       }
       let invocation = try parse(arguments)
-      let directory = try stateDirectory(flag: invocation.stateDirectory, environment: environment)
+      let directory: URL
+      if case .capabilities = invocation.command {
+        directory = URL(fileURLWithPath: "/")
+      } else {
+        directory = try stateDirectory(flag: invocation.stateDirectory, environment: environment)
+      }
       let timeout = invocation.timeout ?? defaultTimeout(invocation.command)
       try await execute(
         invocation.command, directory: directory, timeout: timeout, json: invocation.json,
@@ -61,16 +71,26 @@ public enum MacusCLI {
         streams: streams, overrides: overrides)
       return 0
     } catch let error as UsageError {
-      emit(RuntimeError(.invalidRequest, error.message), json: json, streams: streams)
+      emit(
+        RuntimeError(.invalidRequest, error.message), json: json, streams: streams,
+        environment: environment)
       return 2
     } catch let error as StartupInterrupted {
-      emitInterrupted(error, json: json, streams: streams)
+      emitInterrupted(
+        error, json: json, streams: streams, environment: environment,
+        commands: recoveryCommands(arguments: arguments, environment: environment))
       return 130
+    } catch is ReportedDiagnosis {
+      return 1
     } catch let error as RuntimeError {
-      emit(error, json: json, streams: streams)
+      emit(
+        error, json: json, streams: streams, environment: environment,
+        commands: recoveryCommands(arguments: arguments, environment: environment))
       return arguments.first == "serve" && error.code == .invalidRequest ? 2 : 1
     } catch {
-      emit(RuntimeError(.io, error.localizedDescription), json: json, streams: streams)
+      emit(
+        RuntimeError(.io, error.localizedDescription), json: json, streams: streams,
+        environment: environment)
       return 1
     }
   }
@@ -101,16 +121,37 @@ public enum MacusCLI {
 
     Usage: macus [--state-dir ABSOLUTE_PATH] [--json] [--timeout SECONDS] <command>
 
-    Commands:
-      serve [--state-dir ABSOLUTE_PATH]
-      capabilities
-      runtime status
-      runtime start
+    Startup:
+      start [--remote NAME] [--set-default] [--incus ABSOLUTE_PATH] [--progress auto|plain|none]
+        Prepare the appliance, wait for readiness and connect the Incus client.
+
+    Inspection:
+      runtime status    Observe the outer runtime.
+      doctor            Diagnose live runtime, host and guest health.
+      capabilities      Report host support; add --json for machine output.
+
+    Lifecycle:
+      runtime start     Boot an existing appliance.
       runtime stop [--force]
       runtime restart
-      doctor
+      serve [--state-dir ABSOLUTE_PATH]    Own the daemon in this terminal.
+
+    Client:
       client setup [--remote NAME] [--set-default] [--incus ABSOLUTE_PATH]
-      start [--remote NAME] [--set-default] [--incus ABSOLUTE_PATH] [--progress auto|plain|none]
+
+    Common examples:
+      macus start
+      macus runtime status
+      macus doctor --json
+      macus capabilities --json
+      macus --state-dir /tmp/macus-demo start --progress plain
+      macus client setup --remote macus
+
+    Options:
+      --json            Machine results on stdout, errors on stderr.
+      --progress auto|plain|none    Startup progress on stderr.
+      --state-dir ABSOLUTE_PATH    Select existing or isolated state.
+      --timeout SECONDS           Set a bounded deadline.
 
     start is the high-level first-use command. It prepares the pinned appliance,
     activates a per-user background service when needed, creates an absent runtime,
@@ -144,11 +185,14 @@ public enum MacusCLI {
   }
 }
 
+private struct ReportedDiagnosis: Error {}
+
 private struct UsageError: Error {
   let message: String
 }
 
 private enum Command {
+  case capabilities
   case runtimeStatus
   case runtimeStart
   case runtimeStop(force: Bool)
@@ -189,7 +233,7 @@ private func defaultTimeout(_ command: Command) -> Int {
   switch command {
   case .runtimeStart, .runtimeStop, .runtimeRestart, .clientSetup: MacusCLI.lifecycleTimeout
   case .start: MacusCLI.startTimeout
-  case .runtimeStatus, .doctor: MacusCLI.readOnlyTimeout
+  case .capabilities, .runtimeStatus, .doctor: MacusCLI.readOnlyTimeout
   }
 }
 
@@ -263,7 +307,12 @@ private func parse(_ arguments: [String]) throws -> Invocation {
     index += 1
   }
   let command: Command
-  if positionals == ["runtime", "status"] {
+  if positionals == ["capabilities"] {
+    guard stateDirectory == nil, timeout == nil else {
+      throw UsageError(message: "capabilities accepts only --json")
+    }
+    command = .capabilities
+  } else if positionals == ["runtime", "status"] {
     command = .runtimeStatus
   } else if positionals == ["runtime", "start"] {
     command = .runtimeStart
@@ -318,38 +367,69 @@ private func execute(
   transport: any LocalHTTPTransport, runner: any LocalCommandRunner, streams: MacusStreams,
   overrides: StartupOverrides
 ) async throws {
+  let presentation = HumanPresentation(streams: streams, environment: environment)
   switch command {
+  case .capabilities:
+    let capabilities: HostCapabilities
+    if let detect = overrides.capabilities {
+      capabilities = await detect()
+    } else {
+      capabilities = await MainActor.run { CapabilityDetector.detect() }
+    }
+    let data = try JSON.encoder().encode(capabilities)
+    if json {
+      streams.writeOutput(String(decoding: data, as: UTF8.self) + "\n")
+    } else {
+      presentation.capabilities(try jsonObject(data))
+    }
   case .runtimeStatus:
     let response = try await control(
       "GET", "/v1/runtime/status", Data(), directory: directory, timeout: timeout,
       transport: transport)
-    try emitSuccess(response.body, json: json, streams: streams, human: runtimeText)
+    if json {
+      streams.writeOutput(try jsonText(jsonObject(response.body)))
+    } else {
+      presentation.runtime(try jsonObject(response.body), directory: directory)
+    }
   case .runtimeStart:
     let response = try await control(
       "POST", "/v1/runtime/start", Data(), directory: directory, timeout: timeout,
       transport: transport)
-    try emitSuccess(response.body, json: json, streams: streams, human: runtimeText)
+    if json {
+      streams.writeOutput(try jsonText(jsonObject(response.body)))
+    } else {
+      presentation.runtime(try jsonObject(response.body), directory: directory)
+    }
   case .runtimeStop(let force):
     let response = try await control(
       "POST", "/v1/runtime/stop", try jsonData(["force": force]), directory: directory,
       timeout: timeout, transport: transport)
-    try emitSuccess(response.body, json: json, streams: streams, human: runtimeText)
+    if json {
+      streams.writeOutput(try jsonText(jsonObject(response.body)))
+    } else {
+      presentation.runtime(try jsonObject(response.body), directory: directory)
+    }
   case .runtimeRestart:
     let response = try await control(
       "POST", "/v1/runtime/restart", Data(), directory: directory, timeout: timeout,
       transport: transport)
-    try emitSuccess(response.body, json: json, streams: streams, human: runtimeText)
+    if json {
+      streams.writeOutput(try jsonText(jsonObject(response.body)))
+    } else {
+      presentation.runtime(try jsonObject(response.body), directory: directory)
+    }
   case .clientSetup(let remote, let setDefault, let incus):
     let result = try await IncusClientService(
-      runner: runner, streams: streams, environment: environment
+      runner: overrides.runner ?? runner, streams: streams, environment: environment
     ).setup(
       remote: remote, setDefault: setDefault, incusOverride: incus, directory: directory,
       timeout: timeout, transport: transport)
     let object = clientResultObject(result)
-    streams.writeOutput(json ? try jsonText(object) : renderObject(object))
+    if json { streams.writeOutput(try jsonText(object)) } else { presentation.client(result) }
   case .doctor:
     try await doctor(
-      directory: directory, timeout: timeout, json: json, transport: transport, streams: streams)
+      directory: directory, timeout: timeout, json: json, transport: transport, streams: streams,
+      presentation: presentation)
   case .start(let remote, let setDefault, let incus, let progress):
     try await runStart(
       directory: directory, remote: remote, setDefault: setDefault, incusOverride: incus,
@@ -395,7 +475,9 @@ private func isRemoteByte(_ byte: UInt8) -> Bool {
 }
 
 private func doctor(
-  directory: URL, timeout: Int, json: Bool, transport: any LocalHTTPTransport, streams: MacusStreams
+  directory: URL, timeout: Int, json: Bool, transport: any LocalHTTPTransport,
+  streams: MacusStreams,
+  presentation: HumanPresentation
 ) async throws {
   let socket = try socketURL(directory.appendingPathComponent("runtime.sock"))
   let statusResponse = try await send(
@@ -404,17 +486,22 @@ private func doctor(
   let status = try jsonObject(statusResponse.body)
   var capabilities: [String: Any]?
   var health: [String: Any]?
-  if let response = try? await send(
-    socket: socket, method: "GET", path: "/v1/runtime/capabilities", body: Data(), timeout: timeout,
-    transport: transport)
-  {
-    capabilities = try? jsonObject(response.body)
+  var observations: [String: String] = [:]
+  do {
+    let response = try await send(
+      socket: socket, method: "GET", path: "/v1/runtime/capabilities",
+      body: Data(), timeout: timeout, transport: transport)
+    capabilities = try jsonObject(response.body)
+  } catch {
+    observations["host"] = (error as? RuntimeError)?.message ?? error.localizedDescription
   }
-  if let response = try? await send(
-    socket: socket, method: "GET", path: "/v1/runtime/health", body: Data(), timeout: timeout,
-    transport: transport)
-  {
-    health = try? jsonObject(response.body)
+  do {
+    let response = try await send(
+      socket: socket, method: "GET", path: "/v1/runtime/health",
+      body: Data(), timeout: timeout, transport: transport)
+    health = try jsonObject(response.body)
+  } catch {
+    observations["guest"] = (error as? RuntimeError)?.message ?? error.localizedDescription
   }
   let report: [String: Any] = [
     "capabilities": capabilities ?? NSNull(),
@@ -424,9 +511,14 @@ private func doctor(
   if json {
     streams.writeOutput(try jsonText(report))
   } else {
-    streams.writeOutput(doctorText(status: status, capabilities: capabilities, health: health))
+    presentation.doctor(
+      status: status, capabilities: capabilities, health: health,
+      directory: directory,
+      error: readinessError(status: status, capabilities: capabilities, health: health),
+      observations: observations)
   }
   if let error = readinessError(status: status, capabilities: capabilities, health: health) {
+    if !json { throw ReportedDiagnosis() }
     throw error
   }
 }
@@ -505,85 +597,55 @@ private func code(for status: Int) -> RuntimeError.Code {
   }
 }
 
-private func emitSuccess(
-  _ body: Data, json: Bool, streams: MacusStreams, human: ([String: Any]) -> String
-) throws {
-  let object = try jsonObject(body)
-  streams.writeOutput(json ? try jsonText(object) : human(object))
-}
-
-func emitInterrupted(_ error: StartupInterrupted, json: Bool, streams: MacusStreams) {
+func emitInterrupted(
+  _ error: StartupInterrupted, json: Bool, streams: MacusStreams,
+  environment: [String: String] = [:], commands: [String] = []
+) {
   if json,
     let text = try? jsonText(["error": ["code": "interrupted", "message": error.message]])
   {
     streams.writeError(text)
     return
   }
-  streams.writeError("macus: \(terminalSafe(error.message))\n")
+  HumanPresentation(streams: streams, environment: environment, error: true).failure(
+    error.message, code: "interrupted", commands: commands)
 }
 
-private func emit(_ error: RuntimeError, json: Bool, streams: MacusStreams) {
+private func emit(
+  _ error: RuntimeError, json: Bool, streams: MacusStreams,
+  environment: [String: String], commands: [String] = []
+) {
   if json,
     let text = try? jsonText(["error": ["code": error.code.rawValue, "message": error.message]])
   {
     streams.writeError(text)
     return
   }
-  streams.writeError("macus: \(terminalSafe(error.message))\n")
+  HumanPresentation(streams: streams, environment: environment, error: true).failure(
+    error.message, code: error.code.rawValue,
+    commands: error.code == .invalidRequest ? ["macus --help"] : commands)
 }
 
-private func runtimeText(_ object: [String: Any]) -> String {
-  var lines = ["outer runtime"]
-  for key in ["api_version", "state", "incus_socket", "uptime_seconds", "last_error"] {
-    lines.append("\(key): \(renderScalar(object[key]))")
+private func recoveryCommands(arguments: [String], environment: [String: String]) -> [String] {
+  guard let invocation = try? parse(arguments),
+    let directory = try? MacusCLI.stateDirectory(
+      flag: invocation.stateDirectory, environment: environment)
+  else { return [] }
+  if case .start = invocation.command {
+    return [
+      shellCommand(["macus", "--state-dir", directory.path, "runtime", "status"]),
+      shellCommand(["macus", "--state-dir", directory.path, "runtime", "stop"]),
+    ]
   }
-  return lines.joined(separator: "\n") + "\n"
-}
-
-private func doctorText(
-  status: [String: Any], capabilities: [String: Any]?, health: [String: Any]?
-) -> String {
-  var lines = ["outer runtime", renderObject(status).trimmingCharacters(in: .newlines)]
-  lines.append("capabilities")
-  if let capabilities {
-    lines.append(renderObject(capabilities).trimmingCharacters(in: .newlines))
-  } else {
-    lines.append("unavailable")
-  }
-  lines.append("guest health")
-  if let health {
-    lines.append(renderObject(health).trimmingCharacters(in: .newlines))
-  } else {
-    lines.append("unavailable")
-  }
-  return lines.joined(separator: "\n") + "\n"
-}
-
-private func renderObject(_ object: [String: Any]) -> String {
-  object.keys.sorted().map { key in
-    "\(terminalSafe(key)): \(renderScalar(object[key]))\n"
-  }.joined()
-}
-
-private func renderScalar(_ value: Any?) -> String {
-  guard let value, !(value is NSNull) else { return "null" }
-  if let text = value as? String { return terminalSafe(text) }
-  if let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() {
-    return number.boolValue ? "true" : "false"
-  }
-  if let number = value as? NSNumber { return terminalSafe(number.stringValue) }
-  if let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
-    let text = String(data: data, encoding: .utf8)
-  {
-    return terminalSafe(text)
-  }
-  return terminalSafe(String(describing: value))
+  return []
 }
 
 func terminalSafe(_ value: String) -> String {
   var output = ""
   for scalar in value.unicodeScalars {
-    if scalar.properties.generalCategory == .control || scalar.value == 127 {
+    if scalar.properties.generalCategory == .control || scalar.value == 127
+      || (0x2028...0x202E).contains(scalar.value) || (0x2066...0x2069).contains(scalar.value)
+    {
       output += String(format: "\\u{%04X}", scalar.value)
     } else {
       output.unicodeScalars.append(scalar)

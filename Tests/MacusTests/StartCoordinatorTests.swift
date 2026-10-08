@@ -1104,3 +1104,43 @@ private actor WaitGate {
     continuation = nil
   }
 }
+
+@Test func cancellationDuringClientRegistrationRetainsExit130AndRuntimeData() async throws {
+  let tools = try StartTools()
+  defer { tools.remove() }
+  let state = tools.root.appendingPathComponent("client-cancellation")
+  let paths = RuntimePaths(directory: state)
+  try paths.prepare()
+  try FileManager.default.createDirectory(
+    at: paths.runtimeDirectory, withIntermediateDirectories: true)
+  try Data("root-sentinel".utf8).write(to: paths.rootDisk)
+  try Data("data-sentinel".utf8).write(to: paths.dataDisk)
+  try Data("{\"appliance_manifest_path\":\"/tmp/fixture.json\"}".utf8).write(to: paths.config)
+  let server = try ScriptedSocket(name: "runtime.sock", directory: state) { method, path, _ in
+    readyRuntime(method: method, path: path, directory: state)
+  }
+  defer { server.stop() }
+  var overrides = tools.overrides(
+    downloader: RecordingDownloader(), launchControl: FakeLaunchControl())
+  overrides.runner = CancelledRegistrationRunner()
+  let capture = StartCapture()
+  let code = await MacusCLI.run(
+    arguments: [
+      "start", "--state-dir", state.path, "--incus", tools.incus, "--json", "--progress", "none",
+    ], environment: tools.environment, streams: capture.streams, overrides: overrides)
+  #expect(code == 130)
+  #expect(capture.output.isEmpty)
+  #expect(capture.error.contains("\"interrupted\""))
+  #expect(!capture.error.contains("\"io\""))
+  #expect(try Data(contentsOf: paths.dataDisk) == Data("data-sentinel".utf8))
+  #expect(server.requests().allSatisfy { $0.method == "GET" })
+}
+
+private struct CancelledRegistrationRunner: LocalCommandRunner {
+  func run(executable: String, arguments: [String], environment: [String: String], timeout: Int)
+    async throws -> LocalCommandResult
+  {
+    if arguments == ["remote", "get-default"] { throw CancellationError() }
+    return LocalCommandResult(status: 0, stdout: Data("{}".utf8), stderr: Data())
+  }
+}
