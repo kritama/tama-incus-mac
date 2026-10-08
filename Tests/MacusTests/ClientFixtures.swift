@@ -15,14 +15,19 @@ final class PrivateUNIXSocket: @unchecked Sendable {
   private let accepted = NSLock()
   private var acceptCount = 0
 
-  init(name: String = "endpoint.sock") throws {
-    directory = URL(fileURLWithPath: "/tmp/macus\(UUID().uuidString.prefix(8))", isDirectory: true)
+  init(name: String = "endpoint.sock", directory: URL? = nil) throws {
+    if let directory {
+      self.directory = directory
+    } else {
+      self.directory = URL(
+        fileURLWithPath: "/tmp/macus\(UUID().uuidString.prefix(8))", isDirectory: true)
+    }
     try FileManager.default.createDirectory(
-      at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-    guard chmod(directory.path, 0o700) == 0 else {
+      at: self.directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    guard chmod(self.directory.path, 0o700) == 0 else {
       throw RuntimeError(.io, "Cannot secure test directory")
     }
-    url = directory.appendingPathComponent(name)
+    url = self.directory.appendingPathComponent(name)
     listener = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
     guard listener >= 0 else { throw RuntimeError(.io, "socket failed") }
     var enabled: Int32 = 1
@@ -212,8 +217,11 @@ final class ScriptedSocket: @unchecked Sendable {
   var responder: @Sendable (String, String, Data) -> Data
   var delay: Double = 0
 
-  init(name: String, responder: @escaping @Sendable (String, String, Data) -> Data) throws {
-    socket = try PrivateUNIXSocket(name: name)
+  init(
+    name: String, directory: URL? = nil,
+    responder: @escaping @Sendable (String, String, Data) -> Data
+  ) throws {
+    socket = try PrivateUNIXSocket(name: name, directory: directory)
     self.responder = responder
     socket.serve { [self] descriptor in
       do {

@@ -161,6 +161,90 @@ import Testing
   }
 }
 
+@Test func noisyDecompressorStderrFailsPromptlyAndReapsTheChild() async throws {
+  let root = URL(fileURLWithPath: "/tmp/macus-gz-\(UUID().uuidString.prefix(8))")
+  try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: root) }
+  let script = root.appendingPathComponent("noisy.py")
+  let pidFile = root.appendingPathComponent("pid")
+  let source = """
+    import os, sys
+    open(sys.argv[1], "w").write(str(os.getpid()))
+    os.write(2, b"x" * 262144)
+    os.write(1, b"\\0" * 2048)
+    raise SystemExit(1)
+    """
+  try Data(source.utf8).write(to: script)
+  let archive = root.appendingPathComponent("archive.gz")
+  try Data("not-gzip".utf8).write(to: archive)
+  let destination = root.appendingPathComponent("disk.raw")
+  let started = ContinuousClock.now
+  await #expect(throws: RuntimeError.self) {
+    try await TarArchive.extractGzip(
+      archive: archive, member: "disk.raw", expectedBytes: 4, to: destination,
+      deadline: ContinuousClock.now.advanced(by: .seconds(3)),
+      decompressor: URL(fileURLWithPath: "/usr/bin/python3"),
+      decompressorArguments: [script.path, pidFile.path])
+  }
+  #expect(ContinuousClock.now - started < .seconds(2))
+  #expect(!FileManager.default.fileExists(atPath: destination.path))
+  #expect(childIsGone(pidFile))
+}
+
+@Test func decompressorCancellationReapsTheOwnedChild() async throws {
+  let root = URL(fileURLWithPath: "/tmp/macus-gzc-\(UUID().uuidString.prefix(8))")
+  try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: root) }
+  let script = root.appendingPathComponent("sleep.py")
+  let pidFile = root.appendingPathComponent("pid")
+  try Data(
+    "import os, sys, time\nopen(sys.argv[1], \"w\").write(str(os.getpid()))\ntime.sleep(30)\n".utf8
+  ).write(to: script)
+  let archive = root.appendingPathComponent("archive.gz")
+  try Data("x".utf8).write(to: archive)
+  let task = Task {
+    try await TarArchive.extractGzip(
+      archive: archive, member: "disk.raw", expectedBytes: 4,
+      to: root.appendingPathComponent("disk.raw"),
+      deadline: ContinuousClock.now.advanced(by: .seconds(30)),
+      decompressor: URL(fileURLWithPath: "/usr/bin/python3"),
+      decompressorArguments: [script.path, pidFile.path])
+  }
+  for _ in 0..<40 {
+    if FileManager.default.fileExists(atPath: pidFile.path) { break }
+    try await Task.sleep(for: .milliseconds(25))
+  }
+  task.cancel()
+  _ = await task.result
+  #expect(childIsGone(pidFile))
+}
+
+private func childIsGone(_ pidFile: URL) -> Bool {
+  guard let text = try? String(contentsOf: pidFile, encoding: .utf8),
+    let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)), pid > 1
+  else { return false }
+  return kill(pid, 0) != 0
+}
+
+@Test func validGzipArchiveExtractsTheExpectedMember() async throws {
+  let root = URL(fileURLWithPath: "/tmp/macus-gzv-\(UUID().uuidString.prefix(8))")
+  try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: root) }
+  let payload = Data("disk".utf8)
+  let tarFile = root.appendingPathComponent("disk.tar")
+  try tarArchive(name: "disk.raw", contents: payload).write(to: tarFile)
+  let compressed = try await ProcessCommandRunner().run(
+    executable: "/usr/bin/gzip", arguments: ["-c", tarFile.path], environment: [:], timeout: 10)
+  #expect(compressed.status == 0)
+  let archive = root.appendingPathComponent("disk.tar.gz")
+  try compressed.stdout.write(to: archive)
+  let destination = root.appendingPathComponent("disk.raw")
+  try await TarArchive.extractGzip(
+    archive: archive, member: "disk.raw", expectedBytes: 4, to: destination,
+    deadline: ContinuousClock.now.advanced(by: .seconds(10)))
+  #expect(try Data(contentsOf: destination) == payload)
+}
+
 @Test func startUsageFailsBeforeCreatingState() async throws {
   let missing = URL(fileURLWithPath: "/tmp/macus-start-\(UUID().uuidString.prefix(8))")
   let capture = StartCapture()
@@ -187,6 +271,7 @@ import Testing
     environment: ["PATH": "/usr/bin:/bin", "MACUS_BREW_FALLBACK": "0"],
     streams: capture.streams,
     overrides: StartupOverrides(
+      capabilities: { HostCapabilities(supported: true, nestedVirtualization: false) },
       hasEntitlement: { true },
       downloader: downloader,
       launchControl: launch,
@@ -196,6 +281,28 @@ import Testing
   #expect(launch.bootstrapped.isEmpty)
   #expect(!FileManager.default.fileExists(atPath: missing.path))
   #expect(capture.error.contains("brew.sh"))
+}
+
+@Test func unsupportedHostDoesNotDownloadOrRegister() async throws {
+  let missing = URL(fileURLWithPath: "/tmp/macus-host-\(UUID().uuidString.prefix(8))")
+  let downloader = RecordingDownloader()
+  let launch = FakeLaunchControl()
+  let capture = StartCapture()
+  let status = await MacusCLI.run(
+    arguments: ["--state-dir", missing.path, "--json", "start"],
+    environment: ["PATH": "/usr/bin:/bin", "MACUS_BREW_FALLBACK": "0"],
+    streams: capture.streams,
+    overrides: StartupOverrides(
+      capabilities: { HostCapabilities(supported: false, nestedVirtualization: false) },
+      hasEntitlement: { true },
+      downloader: downloader,
+      launchControl: launch,
+      installSignals: false))
+  #expect(status == 1)
+  #expect(downloader.calls == 0)
+  #expect(launch.bootstrapped.isEmpty)
+  #expect(!FileManager.default.fileExists(atPath: missing.path))
+  #expect(capture.error.contains("unavailable"))
 }
 
 @Test func currentBootRebootIsBoundedAcrossDaemonRestartAndForceStop() async throws {

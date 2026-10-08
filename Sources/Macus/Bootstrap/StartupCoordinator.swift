@@ -171,21 +171,30 @@ private final class StartContext: @unchecked Sendable {
       stateDirectory: paths.directory, home: dependencies.homeDirectory)
     serviceLabel = label
     try await rejectLegacy(paths)
-    if try await compatibleDaemon(paths) {
-      let loaded = try await dependencies.launchControl.printJob(
-        label: label, timeout: try budget.remainingSeconds(at: dependencies.now()))
-      if loaded == nil {
-        serviceOwnership = "foreground"
-        emit(.serviceActivation, .complete, detail: "foreground")
-        return ("foreground", nil)
-      }
+    let executable = dependencies.executablePath()
+    guard isAbsoluteExecutablePath(executable) else {
+      throw RuntimeError(.invalidConfiguration, "Service executable path must be absolute")
+    }
+    let expected = LaunchAgentPlan.arguments(
+      executable: executable, stateDirectory: paths.directory)
+    let planned = LaunchAgentPlan.plistURL(
+      stateDirectory: paths.directory, home: dependencies.homeDirectory,
+      launchAgents: dependencies.launchAgentsDirectory)
+    // A loaded job must be validated before the endpoint exists. Bootstrapping it again
+    // is the launchctl I/O error 5 race.
+    if let loaded = try await dependencies.launchControl.printJob(
+      label: label, timeout: try budget.remainingSeconds(at: dependencies.now()))
+    {
+      try validateLoadedJob(loaded, plist: planned, label: label, arguments: expected)
+      try await waitForEndpoint(paths)
       serviceOwnership = "launchd"
       emit(.serviceActivation, .complete, detail: "reused")
       return ("launchd", label)
     }
-    let executable = dependencies.executablePath()
-    guard isAbsoluteExecutablePath(executable) else {
-      throw RuntimeError(.invalidConfiguration, "Service executable path must be absolute")
+    if try await compatibleDaemon(paths) {
+      serviceOwnership = "foreground"
+      emit(.serviceActivation, .complete, detail: "foreground")
+      return ("foreground", nil)
     }
     let plist = try LaunchAgentPlan.write(
       stateDirectory: paths.directory, home: dependencies.homeDirectory,
@@ -323,6 +332,31 @@ private final class StartContext: @unchecked Sendable {
       throw responseFailure(status: progress.status, body: progress.body)
     }
     return true
+  }
+
+  private func validateLoadedJob(
+    _ job: LaunchJob, plist: URL, label: String, arguments expected: [String]
+  ) throws {
+    if !job.programArguments.isEmpty, job.programArguments != expected {
+      throw RuntimeError(
+        .conflict,
+        "Service \(label) already points at a different executable or state. macus start will not replace that plist."
+      )
+    }
+    guard let object = try dependencies.launchControl.plist(at: plist) else {
+      throw RuntimeError(
+        .conflict,
+        "Service \(label) is loaded without a matching registration. macus start will not bootstrap another job."
+      )
+    }
+    let existingLabel = object["Label"] as? String
+    let existingArguments = object["ProgramArguments"] as? [String]
+    guard existingLabel == label, existingArguments == expected else {
+      throw RuntimeError(
+        .conflict,
+        "Service \(label) already points at a different executable or state. macus start will not replace that plist."
+      )
+    }
   }
 
   private func rejectLegacy(_ paths: RuntimePaths) async throws {

@@ -121,6 +121,11 @@ New startup-managed registrations SHALL use the com.upmaru.macus namespace and b
 - **WHEN** start targets a nondefault isolated state directory
 - **THEN** its service and logs are isolated, the default registration remains unchanged, and the isolated service is not automatically registered for future logins
 
+#### Scenario: Loaded matching job
+
+- **WHEN** the selected label is already loaded with a matching executable and state while its control endpoint is not yet open
+- **THEN** start waits for that endpoint within the original deadline and does not bootstrap a second job or replace the plist
+
 #### Scenario: Legacy service conflict
 
 - **WHEN** an incompatible legacy agent is registered against the selected state

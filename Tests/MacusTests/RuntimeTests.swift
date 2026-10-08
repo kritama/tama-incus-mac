@@ -362,3 +362,85 @@ struct Fixture {
   #expect(FileManager.default.fileExists(atPath: fixture.paths.config.path))
   #expect(FileManager.default.fileExists(atPath: fixture.paths.dataDisk.path))
 }
+
+@Test func confirmedDeleteClearsConsumedAllowanceForTheNextRuntime() async throws {
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  let image = fixture.paths.directory.appendingPathComponent("appliance.raw")
+  let bytes = Data("image".utf8)
+  try bytes.write(to: image)
+  let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+  let manifest = ApplianceManifest(
+    schemaVersion: 1, id: "test", architecture: "arm64", rootDisk: "appliance.raw",
+    sha256: digest, vsockProtocol: 1)
+  let manifestURL = fixture.paths.directory.appendingPathComponent("manifest.json")
+  try JSON.encoder().encode(manifest).write(to: manifestURL)
+  var configuration = RuntimeConfiguration(applianceManifestPath: manifestURL.path)
+  configuration.dataDiskGib = 1
+  configuration.readinessTimeoutSeconds = 5
+  let driver = FakeVM()
+  let service = try RuntimeService(driver: driver, store: StateStore(paths: fixture.paths))
+  try RebootAllowanceStore.ensureAvailable(paths: fixture.paths, catalogID: "old")
+  try RebootAllowanceStore.consume(paths: fixture.paths)
+  #expect(try await service.delete(confirm: true).state == .absent)
+  #expect(!FileManager.default.fileExists(atPath: RebootAllowanceStore.url(fixture.paths).path))
+  #expect(try await service.create(configuration).state == .stopped)
+  #expect(try RebootAllowanceStore.state(paths: fixture.paths) == "available")
+  await driver.setHealthy(false)
+  let start = Task { try await service.start() }
+  for _ in 0..<100 {
+    if await driver.running { break }
+    try await Task.sleep(for: .milliseconds(5))
+  }
+  try Data("MACUS_OBSERVATION v1 stage=kernel_transition state=expected_reboot\n".utf8).write(
+    to: fixture.paths.serialLog)
+  await driver.setRunning(false)
+  for _ in 0..<80 {
+    if await driver.startCount >= 2 { break }
+    try await Task.sleep(for: .milliseconds(50))
+  }
+  await driver.setHealthy(true)
+  #expect(try await start.value.state == .ready)
+  #expect(await driver.startCount == 2)
+  #expect(try RebootAllowanceStore.state(paths: fixture.paths) == "consumed")
+  await driver.setRunning(false)
+  let restarted = try RuntimeService(driver: FakeVM(), store: StateStore(paths: fixture.paths))
+  #expect(try RebootAllowanceStore.state(paths: fixture.paths) == "consumed")
+  try RebootAllowanceStore.ensureAvailable(paths: fixture.paths, catalogID: "ignored")
+  #expect(try RebootAllowanceStore.state(paths: fixture.paths) == "consumed")
+  _ = restarted
+}
+
+@Test func interruptedConfirmedResetRemovesConsumedAllowance() throws {
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  let store = StateStore(paths: fixture.paths)
+  try RebootAllowanceStore.ensureAvailable(paths: fixture.paths, catalogID: "old")
+  try RebootAllowanceStore.consume(paths: fixture.paths)
+  try Data("keep-log".utf8).write(to: fixture.paths.serialLog)
+  try store.beginReset()
+  try FileManager.default.removeItem(at: fixture.paths.runtimeDirectory)
+  #expect(try store.load() == nil)
+  #expect(!FileManager.default.fileExists(atPath: RebootAllowanceStore.url(fixture.paths).path))
+  #expect(try String(contentsOf: fixture.paths.serialLog, encoding: .utf8) == "keep-log")
+}
+
+@Test func unconfirmedResetAndUnsafeAllowanceDoNotReplenishOrFollowLinks() throws {
+  let fixture = try Fixture()
+  defer { fixture.clean() }
+  let store = StateStore(paths: fixture.paths)
+  try RebootAllowanceStore.ensureAvailable(paths: fixture.paths, catalogID: "old")
+  try RebootAllowanceStore.consume(paths: fixture.paths)
+  try Data("unconfirmed".utf8).write(to: fixture.paths.resetIntent)
+  #expect(throws: RuntimeError.self) { try store.delete() }
+  #expect(try RebootAllowanceStore.state(paths: fixture.paths) == "consumed")
+  #expect(FileManager.default.fileExists(atPath: fixture.paths.dataDisk.path))
+  try FileManager.default.removeItem(at: fixture.paths.resetIntent)
+  let outside = fixture.paths.directory.appendingPathComponent("outside")
+  try Data("keep".utf8).write(to: outside)
+  try FileManager.default.removeItem(at: RebootAllowanceStore.url(fixture.paths))
+  #expect(symlink(outside.path, RebootAllowanceStore.url(fixture.paths).path) == 0)
+  #expect(throws: RuntimeError.self) { try store.delete() }
+  #expect(try Data(contentsOf: outside) == Data("keep".utf8))
+  #expect(FileManager.default.fileExists(atPath: fixture.paths.dataDisk.path))
+}

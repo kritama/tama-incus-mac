@@ -466,6 +466,7 @@ private struct StartTools {
     agents: URL? = nil
   ) -> StartupOverrides {
     StartupOverrides(
+      capabilities: { HostCapabilities(supported: true, nestedVirtualization: false) },
       hasEntitlement: { true },
       downloader: downloader,
       launchControl: launchControl ?? FakeLaunchControl(),
@@ -523,6 +524,195 @@ private final class BudgetRunner: LocalCommandRunner, @unchecked Sendable {
       text = ""
     }
     return LocalCommandResult(status: 0, stdout: Data(text.utf8), stderr: Data())
+  }
+}
+
+@Test func loadedMatchingJobIsReusedWithoutBootstrap() async throws {
+  let tools = try StartTools()
+  defer { tools.remove() }
+  let directory = URL(fileURLWithPath: "/tmp/macus-job-\(UUID().uuidString.prefix(8))")
+  try FileManager.default.createDirectory(
+    at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+  defer { try? FileManager.default.removeItem(at: directory) }
+  try FileManager.default.createDirectory(
+    at: directory.appendingPathComponent("runtime"), withIntermediateDirectories: true)
+  try Data("root".utf8).write(to: directory.appendingPathComponent("runtime/root.raw"))
+  try Data("data".utf8).write(to: directory.appendingPathComponent("runtime/data.raw"))
+  try Data("{\"appliance_manifest_path\":\"/tmp/manifest.json\"}".utf8).write(
+    to: directory.appendingPathComponent("config.json"))
+  let executable = "/usr/bin/true"
+  let label = LaunchAgentPlan.label(stateDirectory: directory, home: tools.root)
+  let plist = try LaunchAgentPlan.write(
+    stateDirectory: directory, home: tools.root,
+    launchAgents: tools.root.appendingPathComponent("LaunchAgents"), executable: executable)
+  let before = try Data(contentsOf: plist)
+  let launch = FakeLaunchControl()
+  launch.jobs[label] = LaunchJob(
+    label: label, loaded: true,
+    programArguments: LaunchAgentPlan.arguments(
+      executable: executable, stateDirectory: directory))
+  let capture = StartCapture()
+  let task = Task {
+    await MacusCLI.run(
+      arguments: [
+        "--state-dir", directory.path, "--json", "--progress", "none", "--timeout", "5",
+        "--incus", tools.incus, "start",
+      ],
+      environment: tools.environment, streams: capture.streams,
+      overrides: tools.overrides(downloader: RecordingDownloader(), launchControl: launch))
+  }
+  try await Task.sleep(for: .milliseconds(200))
+  #expect(launch.bootstrapped.isEmpty)
+  let server = try ScriptedSocket(name: "runtime.sock", directory: directory) { method, path, _ in
+    readyRuntime(method: method, path: path, directory: directory)
+  }
+  defer { server.stop() }
+  #expect(await task.value == 0)
+  #expect(launch.bootstrapped.isEmpty)
+  #expect(try Data(contentsOf: plist) == before)
+  #expect(capture.output.contains("launchd"))
+}
+
+@Test func loadedConflictingJobIsNotActivated() async throws {
+  let tools = try StartTools()
+  defer { tools.remove() }
+  let directory = URL(fileURLWithPath: "/tmp/macus-badjob-\(UUID().uuidString.prefix(8))")
+  try FileManager.default.createDirectory(
+    at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+  defer { try? FileManager.default.removeItem(at: directory) }
+  try FileManager.default.createDirectory(
+    at: directory.appendingPathComponent("runtime"), withIntermediateDirectories: true)
+  try Data("root".utf8).write(to: directory.appendingPathComponent("runtime/root.raw"))
+  try Data("data".utf8).write(to: directory.appendingPathComponent("runtime/data.raw"))
+  try Data("{\"appliance_manifest_path\":\"/tmp/manifest.json\"}".utf8).write(
+    to: directory.appendingPathComponent("config.json"))
+  let label = LaunchAgentPlan.label(stateDirectory: directory, home: tools.root)
+  let plist = try LaunchAgentPlan.write(
+    stateDirectory: directory, home: tools.root,
+    launchAgents: tools.root.appendingPathComponent("LaunchAgents"), executable: "/usr/bin/true")
+  let before = try Data(contentsOf: plist)
+  let launch = FakeLaunchControl()
+  launch.jobs[label] = LaunchJob(
+    label: label, loaded: true,
+    programArguments: ["/other/macus", "serve", "--state-dir", directory.path])
+  let capture = StartCapture()
+  let status = await MacusCLI.run(
+    arguments: [
+      "--state-dir", directory.path, "--json", "--timeout", "2", "--incus", tools.incus, "start",
+    ],
+    environment: tools.environment, streams: capture.streams,
+    overrides: tools.overrides(downloader: RecordingDownloader(), launchControl: launch))
+  #expect(status == 1)
+  #expect(launch.bootstrapped.isEmpty)
+  #expect(try Data(contentsOf: plist) == before)
+  #expect(capture.error.contains("will not replace"))
+}
+
+@Test func neverReadyLoadedJobTimesOutWithoutBootstrap() async throws {
+  let tools = try StartTools()
+  defer { tools.remove() }
+  let directory = URL(fileURLWithPath: "/tmp/macus-wait-\(UUID().uuidString.prefix(8))")
+  try FileManager.default.createDirectory(
+    at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+  defer { try? FileManager.default.removeItem(at: directory) }
+  try FileManager.default.createDirectory(
+    at: directory.appendingPathComponent("runtime"), withIntermediateDirectories: true)
+  try Data("root".utf8).write(to: directory.appendingPathComponent("runtime/root.raw"))
+  try Data("data".utf8).write(to: directory.appendingPathComponent("runtime/data.raw"))
+  try Data("{\"appliance_manifest_path\":\"/tmp/manifest.json\"}".utf8).write(
+    to: directory.appendingPathComponent("config.json"))
+  let label = LaunchAgentPlan.label(stateDirectory: directory, home: tools.root)
+  let plist = try LaunchAgentPlan.write(
+    stateDirectory: directory, home: tools.root,
+    launchAgents: tools.root.appendingPathComponent("LaunchAgents"), executable: "/usr/bin/true")
+  let before = try Data(contentsOf: plist)
+  let launch = FakeLaunchControl()
+  launch.jobs[label] = LaunchJob(
+    label: label, loaded: true,
+    programArguments: LaunchAgentPlan.arguments(
+      executable: "/usr/bin/true", stateDirectory: directory))
+  let capture = StartCapture()
+  let started = ContinuousClock.now
+  let status = await MacusCLI.run(
+    arguments: [
+      "--state-dir", directory.path, "--json", "--timeout", "2", "--incus", tools.incus, "start",
+    ],
+    environment: tools.environment, streams: capture.streams,
+    overrides: tools.overrides(downloader: RecordingDownloader(), launchControl: launch))
+  #expect(status == 1)
+  #expect(launch.bootstrapped.isEmpty)
+  #expect(try Data(contentsOf: plist) == before)
+  #expect(capture.error.contains("control endpoint"))
+  #expect(started.duration(to: .now) > .milliseconds(500))
+  #expect(started.duration(to: .now) < .seconds(3))
+}
+
+@Test func absentJobIsBootstrappedOnce() async throws {
+  let tools = try StartTools()
+  defer { tools.remove() }
+  let directory = URL(fileURLWithPath: "/tmp/macus-newjob-\(UUID().uuidString.prefix(8))")
+  try FileManager.default.createDirectory(
+    at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+  defer { try? FileManager.default.removeItem(at: directory) }
+  try FileManager.default.createDirectory(
+    at: directory.appendingPathComponent("runtime"), withIntermediateDirectories: true)
+  try Data("root".utf8).write(to: directory.appendingPathComponent("runtime/root.raw"))
+  try Data("data".utf8).write(to: directory.appendingPathComponent("runtime/data.raw"))
+  try Data("{\"appliance_manifest_path\":\"/tmp/manifest.json\"}".utf8).write(
+    to: directory.appendingPathComponent("config.json"))
+  let launch = SocketOnBootstrap(directory: directory)
+  let status = await MacusCLI.run(
+    arguments: [
+      "--state-dir", directory.path, "--json", "--progress", "none", "--timeout", "5",
+      "--incus", tools.incus, "start",
+    ],
+    environment: tools.environment, streams: StartCapture().streams,
+    overrides: tools.overrides(downloader: RecordingDownloader(), launchControl: launch))
+  #expect(status == 0)
+  #expect(launch.bootstrapped.count == 1)
+  launch.server?.stop()
+}
+
+private func readyRuntime(method: String, path: String, directory: URL) -> Data {
+  if method == "POST" {
+    return mustJSON(500, ["error": ["code": "io", "message": "unexpected mutation"]])
+  }
+  if path == "/v1/runtime/progress" {
+    return mustJSON(200, ["api_version": 1, "ready": true, "state": "ready", "phase": "ready"])
+  }
+  if path == "/v1/runtime/health" {
+    return mustJSON(
+      200, ["protocol_version": 1, "incus_version": "test", "api_extensions": [], "kvm": false])
+  }
+  if path == "/v1/runtime/capabilities" {
+    let encoded = try? JSON.encoder().encode(
+      RuntimeCapabilities(
+        host: HostCapabilities(supported: true, nestedVirtualization: false),
+        health: GuestHealth(incusVersion: "test", apiExtensions: [], kvm: false),
+        nestingEnabled: false))
+    return mustJSON(200, (try? JSONSerialization.jsonObject(with: encoded ?? Data())) ?? [:])
+  }
+  return mustJSON(
+    200, statusObject(state: "ready", incus: directory.appendingPathComponent("incus.sock").path))
+}
+
+private final class SocketOnBootstrap: LaunchControl, @unchecked Sendable {
+  let directory: URL
+  var bootstrapped: [String] = []
+  var server: ScriptedSocket?
+  init(directory: URL) { self.directory = directory }
+  func printJob(label: String, timeout: Int) async throws -> LaunchJob? { nil }
+  func bootstrap(plist: URL, timeout: Int) async throws {
+    bootstrapped.append(plist.path)
+    let state = self.directory
+    server = try ScriptedSocket(name: "runtime.sock", directory: state) { method, path, _ in
+      readyRuntime(method: method, path: path, directory: state)
+    }
+  }
+  func plist(at url: URL) throws -> [String: Any]? {
+    guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+    return try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil)
+      as? [String: Any]
   }
 }
 

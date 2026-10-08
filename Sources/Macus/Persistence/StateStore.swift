@@ -82,12 +82,15 @@ public struct StateStore: Sendable {
     try finishReset()
   }
   private func finishReset() throws {
+    // Fail before deleting disks if allowance bookkeeping is a symlink or foreign file.
+    try RebootAllowanceStore.rejectUnsafeForConfirmedReset(paths: paths)
     if FileManager.default.fileExists(atPath: paths.runtimeDirectory.path) {
       try FileManager.default.removeItem(at: paths.runtimeDirectory)
     }
     if FileManager.default.fileExists(atPath: paths.config.path) {
       try FileManager.default.removeItem(at: paths.config)
     }
+    try RebootAllowanceStore.removeAfterConfirmedReset(paths: paths)
     try syncFile(paths.directory)
     try FileManager.default.removeItem(at: paths.resetIntent)
     try syncFile(paths.directory)

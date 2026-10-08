@@ -11,7 +11,9 @@ enum TarArchive {
 
   static func extractGzip(
     archive: URL, member: String, expectedBytes: Int64, to destination: URL,
-    deadline: ContinuousClock.Instant
+    deadline: ContinuousClock.Instant,
+    decompressor: URL = URL(fileURLWithPath: "/usr/bin/gzip"),
+    decompressorArguments: [String] = ["-dc"]
   ) async throws {
     try Task.checkCancellation()
     guard ContinuousClock.now < deadline else {
@@ -20,29 +22,29 @@ enum TarArchive {
     let input = open(archive.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
     guard input >= 0 else { throw RuntimeError(.io, "Cannot open appliance archive") }
     let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/gzip")
-    process.arguments = ["-dc"]
+    process.executableURL = decompressor
+    process.arguments = decompressorArguments
     let output = Pipe()
-    let error = Pipe()
+    let errorPipe = Pipe()
     process.standardInput = FileHandle(fileDescriptor: input, closeOnDealloc: true)
     process.standardOutput = output
-    process.standardError = error
+    process.standardError = errorPipe
+    let stderr = try StderrDrain(descriptor: errorPipe.fileHandleForReading.fileDescriptor)
     defer {
-      if process.isRunning {
-        kill(process.processIdentifier, SIGKILL)
-        process.waitUntilExit()
-      }
+      terminateAndReap(process)
       try? output.fileHandleForReading.close()
-      try? error.fileHandleForReading.close()
+      try? errorPipe.fileHandleForReading.close()
     }
     do { try process.run() } catch {
       throw RuntimeError(.io, "Cannot decompress appliance archive")
     }
     try? output.fileHandleForWriting.close()
-    try? error.fileHandleForWriting.close()
+    try? errorPipe.fileHandleForWriting.close()
+    try stderr.drain()
     let reader = try PipeReader(
       descriptor: output.fileHandleForReading.fileDescriptor, deadline: deadline,
       maximumBytes: expectedBytes + 8_192)
+    reader.onIdle = { try stderr.drain() }
     do {
       try extract(reader: reader, member: member, expectedBytes: expectedBytes, to: destination)
     } catch {
@@ -54,8 +56,10 @@ enum TarArchive {
       guard ContinuousClock.now < deadline else {
         throw RuntimeError(.timeout, "Appliance extraction deadline exceeded")
       }
+      try stderr.drain()
       try await Task.sleep(for: .milliseconds(20))
     }
+    try stderr.drain()
     guard process.terminationStatus == 0 else {
       try? FileManager.default.removeItem(at: destination)
       throw RuntimeError(.invalidConfiguration, "Appliance archive decompression failed")
@@ -162,11 +166,61 @@ private final class MemoryReader: ByteReader {
   }
 }
 
+private final class StderrDrain: @unchecked Sendable {
+  private let descriptor: Int32
+  private let lock = NSLock()
+  private var kept = Data()
+  init(descriptor: Int32) throws {
+    self.descriptor = descriptor
+    let flags = fcntl(descriptor, F_GETFL)
+    guard flags >= 0, fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0 else {
+      throw RuntimeError(.io, "Cannot configure archive diagnostics")
+    }
+  }
+  func drain() throws {
+    var buffer = [UInt8](repeating: 0, count: 16_384)
+    for _ in 0..<32 {
+      let count = Darwin.read(descriptor, &buffer, buffer.count)
+      if count == 0 { return }
+      if count < 0 {
+        if errno == EINTR { continue }
+        if errno == EAGAIN || errno == EWOULDBLOCK { return }
+        throw RuntimeError(.io, "Cannot read appliance diagnostics")
+      }
+      lock.lock()
+      if kept.count < 4_096 {
+        kept.append(contentsOf: buffer.prefix(min(count, 4_096 - kept.count)))
+      }
+      lock.unlock()
+    }
+  }
+}
+
+private func terminateAndReap(_ process: Process) {
+  let pid = process.processIdentifier
+  guard pid > 1 else { return }
+  var status: Int32 = 0
+  while true {
+    let result = waitpid(pid, &status, WNOHANG)
+    if result == pid || (result < 0 && errno != EINTR) { return }
+    if result == 0 { break }
+  }
+  guard kill(pid, SIGKILL) == 0 || errno == ESRCH else { return }
+  let deadline = ContinuousClock.now.advanced(by: .milliseconds(500))
+  while ContinuousClock.now < deadline {
+    let result = waitpid(pid, &status, WNOHANG)
+    if result == pid || (result < 0 && errno != EINTR) { return }
+    usleep(1_000)
+  }
+  _ = waitpid(pid, &status, WNOHANG)
+}
+
 private final class PipeReader: ByteReader {
   private let descriptor: Int32
   private let deadline: ContinuousClock.Instant
   private let maximumBytes: Int64
   private var produced: Int64 = 0
+  var onIdle: (() throws -> Void)?
   init(descriptor: Int32, deadline: ContinuousClock.Instant, maximumBytes: Int64) throws {
     self.descriptor = descriptor
     self.deadline = deadline
@@ -181,6 +235,7 @@ private final class PipeReader: ByteReader {
     result.reserveCapacity(count)
     while result.count < count {
       try Task.checkCancellation()
+      try onIdle?()
       guard ContinuousClock.now < deadline else {
         throw RuntimeError(.timeout, "Appliance extraction deadline exceeded")
       }
