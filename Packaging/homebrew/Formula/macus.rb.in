@@ -8,8 +8,8 @@ class Macus < Formula
 
 @BOTTLE@
   depends_on arch: :arm64
-  depends_on macos: :sequoia
   depends_on xcode: ["27.0", :build]
+  depends_on macos: :sequoia
 
   def install
     # Homebrew already sandboxes the build; SwiftPM cannot nest sandbox-exec inside it.
@@ -19,7 +19,9 @@ class Macus < Formula
            "--entitlements", "Packaging/virtualization.entitlements", bin/"macus"
     system "/usr/bin/codesign", "--verify", "--strict", bin/"macus"
     entitlement = Utils.safe_popen_read("/usr/bin/codesign", "-d", "--entitlements", ":-", bin/"macus")
-    odie "macus is missing its virtualization entitlement" unless entitlement.include?("com.apple.security.virtualization")
+    unless entitlement.include?("com.apple.security.virtualization")
+      odie "macus is missing its virtualization entitlement"
+    end
   end
 
   def caveats

@@ -79,6 +79,11 @@ def render(manifest, bottle_root=None, source_url=None):
     bottle = ""
     if manifest.get("bottles"):
         lines = ["  bottle do", f"    root_url {ruby_string(bottle_root or manifest['bottle_root'])}"]
+        rebuild = manifest.get("bottle_rebuild", 0)
+        if type(rebuild) is not int or rebuild < 0:
+            raise ValueError("Invalid Homebrew bottle rebuild")
+        if rebuild:
+            lines.append(f"    rebuild {rebuild}")
         for tag, info in sorted(manifest["bottles"].items()):
             if not re.fullmatch(r"arm64_[a-z0-9_]+", tag):
                 raise ValueError("Bottles must use an ARM64 macOS tag")
@@ -213,6 +218,7 @@ def build(args):
     record = json.loads(records[0].read_text())[FORMULA]
     if record["formula"]["pkg_version"] != manifest["version"]:
         raise ValueError("Bottle version does not match candidate")
+    manifest["bottle_rebuild"] = record["bottle"]["rebuild"]
     manifest["bottles"] = {tag: {"filename": info["filename"], "local_filename": info["local_filename"],
                                "sha256": info["sha256"], "cellar": record["bottle"]["cellar"]}
                             for tag, info in record["bottle"]["tags"].items()}
