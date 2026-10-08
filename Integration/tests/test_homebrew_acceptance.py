@@ -12,6 +12,22 @@ SPEC.loader.exec_module(acceptance)
 
 
 class HomebrewAcceptanceTests(unittest.TestCase):
+    def test_resume_requires_stop_unload_and_new_candidate(self):
+        with self.assertRaisesRegex(ValueError, 'stop and unload'):
+            acceptance.require_upgrade({'checks': {}}, {'version': 'new'})
+        report = {'checks': {'stopped_and_unloaded': True}, 'stopped_version': 'old'}
+        with self.assertRaisesRegex(ValueError, 'different installed'):
+            acceptance.require_upgrade(report, {'version': 'old'})
+        acceptance.require_upgrade(report, {'version': 'new'})
+
+    def test_launchd_label_matches_platform_aliases(self):
+        self.assertEqual(acceptance.service_label(Path('/private/tmp/macus-brew/state')),
+                         acceptance.service_label(Path('/tmp/macus-brew/state')))
+        self.assertEqual(acceptance.service_label(Path('/private/var/macus-brew/state')),
+                         acceptance.service_label(Path('/var/macus-brew/state')))
+        self.assertNotEqual(acceptance.service_label(Path('/tmp/macus-brew/state')),
+                            acceptance.service_label(Path('/tmp/other/state')))
+
     def test_refuses_without_opt_in_before_creating_state(self):
         with tempfile.TemporaryDirectory(dir="/private/tmp") as directory:
             root = Path(directory) / "fresh"

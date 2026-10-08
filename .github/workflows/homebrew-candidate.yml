@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: homebrew-candidate-${{ github.ref }}
-  cancel-in-progress: true
+  group: homebrew-candidate
+  cancel-in-progress: false
 
 jobs:
   bottle:
@@ -37,6 +37,9 @@ jobs:
         run: brew uninstall upmaru/macus-local/macus
       - name: Install and validate prebuilt bottle
         run: python3 Packaging/homebrew/candidate.py install --opt-in --candidate .integration/homebrew-candidate
+      - name: Clean up only the job-owned package and tap
+        if: always() && hashFiles('.integration/homebrew-candidate/candidate.json') != ''
+        run: python3 Packaging/homebrew/candidate.py cleanup --opt-in --candidate .integration/homebrew-candidate
       - name: Retain candidate artifacts and diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

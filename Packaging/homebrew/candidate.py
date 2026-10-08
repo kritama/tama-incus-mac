@@ -22,7 +22,7 @@ FORMULA = TAP + "/macus"
 
 
 def run(arguments, cwd=None, log=None, timeout=1800):
-    environment = dict(os.environ, HOMEBREW_NO_AUTO_UPDATE="1")
+    environment = dict(os.environ, HOMEBREW_NO_AUTO_UPDATE="1", HOMEBREW_NO_INSTALL_CLEANUP="1")
     if log:
         log = safe_path(log)
         with log.open("ab") as output:
@@ -279,6 +279,24 @@ def verify(root):
     print(root / "package-acceptance.json")
 
 
+def cleanup(args):
+    """Remove only this candidate's package and tap, never an unrelated installation."""
+    require_opt_in(args)
+    root, manifest = load(args.candidate)
+    prefix = Path(run(["brew", "--prefix", FORMULA]))
+    if prefix.exists():
+        installed = prefix.resolve(strict=True)
+        receipt = json.loads((installed / "INSTALL_RECEIPT.json").read_text())
+        if installed.name != manifest["version"] or receipt.get("source", {}).get("tap") != TAP:
+            raise ValueError("Refusing cleanup of an unrelated installed package")
+        run(["brew", "uninstall", FORMULA], log=root / "cleanup.log")
+    if TAP in run(["brew", "tap"]).splitlines():
+        tap = Path(run(["brew", "--repository", TAP]))
+        if run(["git", "remote", "get-url", "origin"], cwd=tap) != str(root / "tap"):
+            raise ValueError("Refusing cleanup of an unrelated local tap")
+        run(["brew", "untap", TAP], log=root / "cleanup.log")
+
+
 def export(args):
     root, manifest = load(args.candidate)
     if not manifest["bottles"]:
@@ -306,10 +324,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("prepare").add_argument("--output", type=Path, required=True)
-    for name in ("build", "install", "verify", "export"):
+    for name in ("build", "install", "verify", "export", "cleanup"):
         sub = commands.add_parser(name)
         sub.add_argument("--candidate", type=Path, required=True)
-        if name in ("build", "install"):
+        if name in ("build", "install", "cleanup"):
             sub.add_argument("--opt-in", action="store_true")
         if name == "export":
             sub.add_argument("--source-url", required=True)

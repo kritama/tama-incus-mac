@@ -2,9 +2,9 @@
 
 ## 1. Formula and candidate artifacts
 
-- [ ] 1.1 Add the canonical Macus source formula/template under `Packaging/homebrew`, with ARM64/macOS 15+ restrictions, build-only Swift 6.4 prerequisite, installed entitlement verification, passive install and no service stanza; verify Ruby/Homebrew style and audit checks and a source build on the selected toolchain.
+- [x] 1.1 Add the canonical Macus source formula/template under `Packaging/homebrew`, with ARM64/macOS 15+ restrictions, build-only Swift 6.4 prerequisite, installed entitlement verification, passive install and no service stanza; verify Ruby/Homebrew style and audit checks and a source build on the selected toolchain.
 - [x] 1.2 Add candidate generation from a clean committed revision, with measured source SHA-256 and a manifest containing package version, commit, toolchain, platform and signing mode; verify guards reject dirty/unidentified inputs, placeholder digests and conflicting artifact reuse without publishing an installable incomplete formula.
-- [ ] 1.3 Add the Homebrew build-bottle and bottle-JSON merge workflow; verify the generated formula metadata matches the actual bottle bytes and signatures/entitlements before and after pouring on the build platform.
+- [x] 1.3 Add the Homebrew build-bottle and bottle-JSON merge workflow; verify the generated formula metadata matches the actual bottle bytes and signatures/entitlements before and after pouring on the build platform.
 - [x] 1.4 Add pure packaging integrity/guard regressions to ordinary checks and document local artifact generation, development signing and source fallback in `Packaging/homebrew/README.md`; verify these checks do not install packages, publish assets or boot VMs.
 
 ## 2. Homebrew service paths and package transitions
@@ -16,14 +16,14 @@
 
 ## 3. Local tap and package acceptance
 
-- [ ] 3.1 Add opt-in local Git tap generation and installation commands using actual local source/bottle URLs and a distinct local tap identity; verify conflicting Macus installations are refused without unlink/overwrite and generated shared-tap output rejects local URLs.
-- [ ] 3.2 Add an installed-package acceptance command that records keg, revision, formula, digest, host and bottle receipt; verify installed help/capabilities, signature, virtualization entitlement, source independence and absence of runtime/service creation, and fail if installation built from source.
-- [ ] 3.3 Add fixture checks for corruption rejection, package conflicts, protected report paths and retained failure artifacts; verify these tests do not mutate host Homebrew and their invocation is included in canonical checks.
-- [ ] 3.4 Document and execute the opt-in local tap bottle rehearsal in a dedicated supported package environment; verify no tester Swift invocation occurred and save a package-only report with hardware acceptance explicitly incomplete.
+- [x] 3.1 Add opt-in local Git tap generation and installation commands using actual local source/bottle URLs and a distinct local tap identity; verify conflicting Macus installations are refused without unlink/overwrite and generated shared-tap output rejects local URLs.
+- [x] 3.2 Add an installed-package acceptance command that records keg, revision, formula, digest, host and bottle receipt; verify installed help/capabilities, signature, virtualization entitlement, source independence and absence of runtime/service creation, and fail if installation built from source.
+- [x] 3.3 Add fixture checks for corruption rejection, package conflicts, protected report paths and retained failure artifacts; verify these tests do not mutate host Homebrew and their invocation is included in canonical checks.
+- [x] 3.4 Document and execute the opt-in local tap bottle rehearsal in a dedicated supported package environment; verify no tester Swift invocation occurred and save a package-only report with hardware acceptance explicitly incomplete.
 
 ## 4. Installed hardware acceptance
 
-- [ ] 4.1 Extend/reuse acceptance runners for the Homebrew-installed executable with separate package/hardware flags, short isolated state, isolated `INCUS_CONF` and unique remote; verify refusal without opt-in and unsafe-path rejection using fixtures before running hardware.
+- [x] 4.1 Extend/reuse acceptance runners for the Homebrew-installed executable with separate package/hardware flags, short isolated state, isolated `INCUS_CONF` and unique remote; verify refusal without opt-in and unsafe-path rejection using fixtures before running hardware.
 - [ ] 4.2 When explicitly authorized, run first-use and repeated-start hardware acceptance from the installed bottle; verify live Incus readiness, expected kernel continuation, standard client connectivity, service isolation and no checkout binary substitution, retaining state/logs on failure.
 - [ ] 4.3 When explicitly authorized, use two verified candidate package revisions for stop/unload/upgrade/start and standard Incus marker persistence, then stop/unload/uninstall; verify the marker survives upgrade and runtime/client data survives removal, with no automatic disk reset or guest image upgrade.
 - [ ] 4.4 Update `docs/acceptance.md` with separate package and hardware evidence, exact candidate identities, exercised OS coverage and limitations; verify unexecuted hardware/compatibility checks remain visibly incomplete and initial ad-hoc bottles make no notarization claim.

@@ -31,6 +31,24 @@ def fixture_paths(root, first=False):
     return root, state, client
 
 
+def service_label(state):
+    # Foundation standardizes Darwin's /private/tmp and /private/var aliases.
+    path = str(state)
+    for alias in ("/private/tmp/", "/private/var/"):
+        if path.startswith(alias):
+            path = path.removeprefix("/private")
+            break
+    return "com.upmaru.macus." + hashlib.sha256(path.encode()).hexdigest()[:12]
+
+
+def require_upgrade(report, manifest):
+    stopped = report.get("stopped_version")
+    if not report.get("checks", {}).get("stopped_and_unloaded") or not stopped:
+        raise ValueError("Resume requires a recorded successful stop and unload")
+    if stopped == manifest["version"]:
+        raise ValueError("Resume requires a different installed package candidate")
+
+
 def execute(arguments, env, report, timeout=1800):
     result = subprocess.run(arguments, env=env, text=True, capture_output=True, timeout=timeout)
     report.setdefault("commands", []).append({"tool": Path(arguments[0]).name,
@@ -45,7 +63,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--candidate", type=Path, required=True)
     parser.add_argument("--root", type=Path, required=True)
-    parser.add_argument("--phase", choices=["start", "stop", "resume", "removed"], required=True)
+    parser.add_argument("--phase", choices=["start", "retry-start", "stop", "resume", "removed"], required=True)
     parser.add_argument("--opt-in", action="store_true")
     parser.add_argument("--hardware", action="store_true")
     args = parser.parse_args()
@@ -53,7 +71,7 @@ def main():
         raise ValueError("Requires explicit --opt-in --hardware before any mutation")
     root, state, client = fixture_paths(args.root, first=args.phase == "start")
     _, manifest = candidate.load(args.candidate)
-    label = "com.upmaru.macus." + hashlib.sha256(str(state).encode()).hexdigest()[:12]
+    label = service_label(state)
     if args.phase == "start":
         root.mkdir(parents=True, exist_ok=True, mode=0o700)
         client.mkdir(mode=0o700)
@@ -63,6 +81,8 @@ def main():
         report = json.loads((root / "hardware.json").read_text())
         if (report.get("state"), report.get("incus_conf"), report.get("service_label")) != (str(state), str(client), label):
             raise ValueError("Hardware report does not match isolated fixture identity")
+    if args.phase == "resume":
+        require_upgrade(report, manifest)
     env = dict(os.environ, INCUS_CONF=str(client), MACUS_STATE_DIR=str(state), HOMEBREW_NO_AUTO_UPDATE="1")
     remote = "macus-brew"
     instance = remote + ":macus-brew-marker"
@@ -85,15 +105,15 @@ def main():
             prefix = Path(candidate.run(["brew", "--prefix", candidate.FORMULA])).resolve(strict=True)
             binary = str(prefix / "bin/macus")
             report["installed_binary"] = binary
-            if args.phase in ("start", "resume"):
+            if args.phase in ("start", "retry-start", "resume"):
                 command = [binary, "--state-dir", str(state), "--json", "--progress", "none",
                            "--incus", incus, "start", "--remote", remote]
-                for attempt in range(2 if args.phase == "start" else 1):
+                for attempt in range(2 if args.phase in ("start", "retry-start") else 1):
                     result = json.loads(execute(command, env, report))
                     if result.get("ready") is not True or result.get("connected") is not True or result.get("service_label") != label:
                         raise ValueError("Installed startup did not reach isolated live readiness")
                 execute([incus, "list", remote + ":", "--format=json"], env, report)
-                if args.phase == "start":
+                if args.phase in ("start", "retry-start") and not report["checks"].get("first_and_repeated_start"):
                     execute([incus, "launch", "images:alpine/3.24", instance, "-c", "boot.autostart=true"], env, report)
                     execute([incus, "exec", instance, "--", "sh", "-c", "printf macus-brew-persistence > /root/macus-marker"], env, report)
                     report["checks"]["first_and_repeated_start"] = True
@@ -108,6 +128,7 @@ def main():
                     raise ValueError("Runtime did not stop before package change")
                 execute(["/bin/launchctl", "bootout", f"gui/{os.getuid()}/{label}"], env, report)
                 report["checks"]["stopped_and_unloaded"] = True
+                report["stopped_version"] = manifest["version"]
         report["last_phase_success"] = True
     except Exception as error:
         report["last_phase_success"] = False

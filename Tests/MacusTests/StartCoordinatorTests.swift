@@ -764,7 +764,12 @@ func registeredServiceWithTrailingSpaceStateIsMatched(state: String) async throw
     label: fixture.label, state: "spawn scheduled", arguments: fixture.expected)
   let launch = ProcessLaunchControl(runner: runner, environment: [:], uid: 501)
   let task = Task { await fixture.start(launch: launch, timeout: 5) }
-  try await Task.sleep(for: .milliseconds(200))
+  // Cold subprocess startup on CI can exceed 200 ms. Observe the print request
+  // before asserting that no activation occurred while readiness is withheld.
+  let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+  while runner.commands.isEmpty && ContinuousClock.now < deadline {
+    try await Task.sleep(for: .milliseconds(10))
+  }
   #expect(runner.commands == [["print", "gui/501/\(fixture.label)"]])
   fixture.openEndpoint()
   #expect(await task.value == 0)

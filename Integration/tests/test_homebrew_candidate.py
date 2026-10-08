@@ -74,7 +74,7 @@ class CandidateTests(unittest.TestCase):
                 candidate.load(root)
 
     def test_mutations_require_opt_in_before_executing(self):
-        for action in (candidate.build, candidate.install):
+        for action in (candidate.build, candidate.install, candidate.cleanup):
             with patch.object(candidate, "run") as command:
                 with self.assertRaisesRegex(ValueError, "opt-in"):
                     action(argparse.Namespace(opt_in=False, candidate=Path("/missing")))
