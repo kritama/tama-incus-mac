@@ -10,14 +10,32 @@ The bundled `macus` client calls the control socket and can register `incus.sock
 | GET | `/v1/runtime/capabilities` | Host support and live Incus/workload evidence |
 | GET | `/v1/runtime/health` | Live guest protocol, Incus version/extensions and KVM |
 | GET | `/v1/runtime/config` | Complete configuration |
+| GET | `/v1/runtime/progress` | Read-only boot snapshot; not live readiness |
 | POST | `/v1/runtime/create` | Complete configuration; creates verified writable root and persistent data |
-| POST | `/v1/runtime/start` | No body; waits for readiness |
+| POST | `/v1/runtime/start` | Empty body, or optional `{"remaining_seconds":N}` |
 | POST | `/v1/runtime/stop` | Optional `{"force":false}`; waits for graceful shutdown |
 | POST | `/v1/runtime/restart` | No body; graceful stop, then start |
 | PUT | `/v1/runtime/config` | Complete replacement; only when stopped |
 | DELETE | `/v1/runtime` | `{"confirm":true}`; only when stopped; destroys Incus state |
 
 States: `absent`, `stopped`, `starting`, `ready`, `stopping`, `failed`. Start/create/stop are idempotent when their postcondition is already satisfied. Lifecycle/configuration mutations return 409 during another mutation, except explicit force stop cancels an active boot wait; status remains readable. Initial boot allows 600 seconds by default; clients must use a matching response timeout. Stop never silently forces shutdown on timeout. Deletion leaves the externally supplied source image/seed and logs intact. Confirmed deletion records durable intent before touching owned files; daemon restart completes an interrupted reset. Invalid intent or unconfirmed incomplete state preserves data. A readiness failure may leave the outer VM running; explicitly stop it before recovery. Repeated start rechecks guest health before returning ready.
+
+Progress is readable while start is still running. `ready` is true only after live guest health, never because a serial marker or process launch occurred. `phase` is an allowlisted provisioning observation such as `packages`, `kernel_transition`, `storage`, `incus` or `expected_reboot`. Unknown marker versions are ignored. A fresh catalogued bootstrap may restart once after the current boot emits `MACUS_OBSERVATION v1 stage=kernel_transition state=expected_reboot` and the guest actually stops. The allowance is durable, is not replenished by a daemon restart, and is not a second start request. Stale serial lines do not authorize a restart. Explicit force stop cancels a pending restart. An empty start body keeps the saved readiness limit. A valid `remaining_seconds` value from 1 to 3600 bounds that boot and the expected restart by the smaller of the budget and the saved limit, without writing configuration. Invalid or unbounded budgets fail before boot.
+
+```json
+{
+  "api_version": 1,
+  "schema_version": 1,
+  "state": "starting",
+  "ready": false,
+  "operation": "start",
+  "phase": "packages",
+  "elapsed_seconds": 12,
+  "expected_reboot": false,
+  "detail": null,
+  "last_error": null
+}
+```
 
 JSON uses snake_case. Configuration schema 1 requires every nonoptional field shown below. `seed_path` may be omitted or null; `read_only` defaults to true within a share. Swift initializer defaults and the generated template do not imply omitted-field defaults for configuration JSON; API clients can use the generated `config.json`:
 

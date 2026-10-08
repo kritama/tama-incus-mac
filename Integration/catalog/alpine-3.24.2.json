@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "alpine-3.24.2-incus-v1",
+  "architecture": "arm64",
+  "archive_name": "alpine-3.24.2-aarch64-cloudinit-metal-r0.raw.tar.gz",
+  "archive_url": "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/cloud/alpine-3.24.2-aarch64-cloudinit-metal-r0.raw.tar.gz",
+  "archive_sha512": "d8ed6f0fa98d15218c351d2903d961b2cec68a7fd39ec8567fae9c49d943ae21f5cd56754497480a0cf899332acc632617b531b153e12e81d1f021c81f634518",
+  "archive_bytes": 626889284,
+  "member_name": "disk.raw",
+  "raw_bytes": 1073741824,
+  "raw_sha256": "47c0b69be2a3458c2a1ff11519e8f4b3f6565a73e89a2fe2294ed0ca3e496516",
+  "signer_fingerprint": "F26ADFADBAE702EF7AF637459DA7EF23BFFCDF22",
+  "signing_key_url": "https://alpinelinux.org/keys/tomalok.asc",
+  "verified_with": "Integration/scripts/verify-appliance.py",
+  "verified_at": "2026-10-07",
+  "catalog_version": 1,
+  "manifest_version": 1,
+  "helper_version": 1,
+  "qualified_packages": {
+    "incus": ">=7.0.1",
+    "linux-lts": "6.18.55-r0",
+    "zfs": "2.4.4-r0",
+    "zfs-libs": "2.4.4-r0",
+    "zfs-lts": "6.18.55-r0",
+    "zfs-openrc": "2.4.4-r0"
+  },
+  "notes": "Digests were checked with Integration/scripts/verify-appliance.py against the pinned Alpine cloud signer. The downloaded sidecar checksum is not an independent trust root. guest_payload_revision is filled by Integration/scripts/sync-guest-payload.py.",
+  "guest_payload_revision": "da61f013f74dbf1c086af2b5308c548ac2ddb44cede989df74c85669946e28d9"
+}

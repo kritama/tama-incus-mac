@@ -9,7 +9,7 @@ public final class UnixListener {
   private let path: URL
   private var connections: [UUID: SocketDescriptor] = [:]
   private var stopped = false
-  private let logger = Logger(subsystem: "com.kritama.macus", category: "unix")
+  private let logger = Logger(subsystem: "com.upmaru.macus", category: "unix")
 
   public init(path: URL, handler: @escaping @Sendable (SocketDescriptor) async -> Void) throws {
     self.path = path

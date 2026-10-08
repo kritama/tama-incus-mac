@@ -50,6 +50,72 @@ import Testing
   #expect(errno == ESRCH)
 }
 
+@Test func commandRunnerReapsAfterExitCancellationAndDeadline() async throws {
+  for _ in 0..<8 {
+    let exited = try commandTestDirectory()
+    defer { try? FileManager.default.removeItem(at: exited) }
+    let exitedPID = exited.appendingPathComponent("pid")
+    let finished = Task {
+      try await ProcessCommandRunner().run(
+        executable: "/usr/bin/python3",
+        arguments: [
+          "-c", "import os,sys; open(sys.argv[1],'w').write(str(os.getpid()))", exitedPID.path,
+        ],
+        environment: ProcessInfo.processInfo.environment, timeout: 5)
+    }
+    let gone = try await commandTestPID(exitedPID)
+    finished.cancel()
+    let started = ContinuousClock.now
+    _ = await finished.result
+    #expect(started.duration(to: .now) < .seconds(2))
+    #expect(kill(gone, 0) == -1)
+    #expect(errno == ESRCH)
+
+    let sleeping = try commandTestDirectory()
+    defer { try? FileManager.default.removeItem(at: sleeping) }
+    let sleepingPID = sleeping.appendingPathComponent("pid")
+    let running = Task {
+      try await ProcessCommandRunner().run(
+        executable: "/usr/bin/python3",
+        arguments: [
+          "-c",
+          "import os,sys,time; open(sys.argv[1],'w').write(str(os.getpid())); time.sleep(30)",
+          sleepingPID.path,
+        ],
+        environment: ProcessInfo.processInfo.environment, timeout: 10)
+    }
+    let live = try await commandTestPID(sleepingPID)
+    let cancelStarted = ContinuousClock.now
+    running.cancel()
+    await #expect(throws: CancellationError.self) { try await running.value }
+    #expect(cancelStarted.duration(to: .now) < .seconds(2))
+    #expect(kill(live, 0) == -1)
+    #expect(errno == ESRCH)
+  }
+}
+
+@Test func commandRunnerDeadlineReapsPublishedChild() async throws {
+  let root = try commandTestDirectory()
+  defer { try? FileManager.default.removeItem(at: root) }
+  let pidFile = root.appendingPathComponent("pid")
+  let started = ContinuousClock.now
+  let task = Task {
+    try await ProcessCommandRunner().run(
+      executable: "/usr/bin/python3",
+      arguments: [
+        "-c", "import os,sys,time; open(sys.argv[1],'w').write(str(os.getpid())); time.sleep(30)",
+        pidFile.path,
+      ],
+      environment: ProcessInfo.processInfo.environment, timeout: 1)
+  }
+  let pid = try await commandTestPID(pidFile)
+  defer { if kill(pid, 0) == 0 { _ = kill(pid, SIGKILL) } }
+  await #expect(throws: RuntimeError.self) { try await task.value }
+  #expect(started.duration(to: .now) < .seconds(3))
+  #expect(kill(pid, 0) == -1)
+  #expect(errno == ESRCH)
+}
+
 @Test func commandRunnerDoesNotWaitForDescendantPipeEOF() async throws {
   let root = try commandTestDirectory()
   defer { try? FileManager.default.removeItem(at: root) }

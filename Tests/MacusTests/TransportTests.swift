@@ -61,7 +61,14 @@ func socketPair() throws -> (SocketDescriptor, SocketDescriptor) {
   client.timeout(seconds: 3)
   server.timeout(seconds: 3)
   let relay = Task { await SocketRelay.relay(host, guest) }
-  try await Task.detached {
+  defer {
+    client.shutdown()
+    server.shutdown()
+    relay.cancel()
+  }
+  // Detached tasks still use Swift's cooperative executor. Blocking socket I/O
+  // belongs on the I/O queue so the relay can start even on a constrained runner.
+  try await SocketIO.run {
     let binary = Data([0, 255, 128, 10, 13, 0, 42])
     try client.write(binary)
     client.shutdownWrite()
@@ -81,7 +88,7 @@ func socketPair() throws -> (SocketDescriptor, SocketDescriptor) {
       reply.append(chunk)
     }
     #expect(reply == Data("response-after-client-half-close".utf8))
-  }.value
+  }
   await relay.value
 }
 
@@ -103,28 +110,36 @@ func socketPair() throws -> (SocketDescriptor, SocketDescriptor) {
   }
   let forward = Data((0..<2_000_000).map { UInt8(truncatingIfNeeded: $0) })
   let reverse = Data(repeating: 173, count: 2_000_000)
-  let writeForward = Task.detached {
-    try client.write(forward)
-    client.shutdownWrite()
-  }
-  let writeReverse = Task.detached {
-    try server.write(reverse)
-    server.shutdownWrite()
-  }
-  let readForward = Task.detached {
-    var received = Data()
-    while true {
-      let chunk = try server.read()
-      if chunk.isEmpty { return received }
-      received.append(chunk)
+  let writeForward = Task {
+    try await SocketIO.run {
+      try client.write(forward)
+      client.shutdownWrite()
     }
   }
-  let readReverse = Task.detached {
-    var received = Data()
-    while true {
-      let chunk = try client.read()
-      if chunk.isEmpty { return received }
-      received.append(chunk)
+  let writeReverse = Task {
+    try await SocketIO.run {
+      try server.write(reverse)
+      server.shutdownWrite()
+    }
+  }
+  let readForward = Task {
+    try await SocketIO.run {
+      var received = Data()
+      while true {
+        let chunk = try server.read()
+        if chunk.isEmpty { return received }
+        received.append(chunk)
+      }
+    }
+  }
+  let readReverse = Task {
+    try await SocketIO.run {
+      var received = Data()
+      while true {
+        let chunk = try client.read()
+        if chunk.isEmpty { return received }
+        received.append(chunk)
+      }
     }
   }
   #expect(try await readForward.value == forward)

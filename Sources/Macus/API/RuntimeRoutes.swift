@@ -19,7 +19,11 @@ public struct RuntimeRoutes: Sendable {
       case ("PUT", "/v1/runtime/config"):
         return try HTTPResponse(
           value: await service.update(decode(RuntimeConfiguration.self, request.body)))
-      case ("POST", "/v1/runtime/start"): return try HTTPResponse(value: await service.start())
+      case ("GET", "/v1/runtime/progress"):
+        return try HTTPResponse(value: await service.progress())
+      case ("POST", "/v1/runtime/start"):
+        return try HTTPResponse(
+          value: await service.start(remainingSeconds: try startBudget(request.body)))
       case ("POST", "/v1/runtime/restart"): return try HTTPResponse(value: await service.restart())
       case ("POST", "/v1/runtime/stop"):
         let force = request.body.isEmpty ? false : try decode(Stop.self, request.body).force
@@ -30,6 +34,23 @@ public struct RuntimeRoutes: Sendable {
       default: throw RuntimeError(.notFound, "Unknown runtime route")
       }
     } catch { return HTTPResponse.error(error) }
+  }
+  private func startBudget(_ data: Data) throws -> Int? {
+    if data.isEmpty { return nil }
+    guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+      throw RuntimeError(.invalidRequest, "Invalid startup budget")
+    }
+    guard let value = object["remaining_seconds"] else { return nil }
+    guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else {
+      throw RuntimeError(.invalidRequest, "Invalid startup budget")
+    }
+    let double = number.doubleValue
+    guard double.rounded() == double, let seconds = Int(exactly: number.int64Value),
+      (1...3_600).contains(seconds)
+    else {
+      throw RuntimeError(.invalidRequest, "remaining_seconds must be an integer from 1 to 3600")
+    }
+    return seconds
   }
   private func decode<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
     do { return try JSON.decoder().decode(type, from: data) } catch {

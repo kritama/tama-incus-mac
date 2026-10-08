@@ -12,7 +12,10 @@ public actor RuntimeService {
   private var generation: UInt64 = 0
   private var startingTask: Task<RuntimeStatus, Error>?
   private var startedAt: Date?
-  private let logger = Logger(subsystem: "com.kritama.macus", category: "runtime")
+  private let logger = Logger(subsystem: "com.upmaru.macus", category: "runtime")
+  private var bootPhase: String?
+  private var bootExpectedReboot = false
+  private var bootStartedAt: ContinuousClock.Instant?
 
   public init(driver: any VirtualMachineDriver, store: StateStore) throws {
     self.driver = driver
@@ -58,6 +61,8 @@ public actor RuntimeService {
     configuration = value
     state = .stopped
     lastError = nil
+    try RebootAllowanceStore.ensureAvailable(
+      paths: store.paths, catalogID: value.applianceManifestPath)
     return snapshot()
   }
   public func update(_ value: RuntimeConfiguration) async throws -> RuntimeStatus {
@@ -85,10 +90,30 @@ public actor RuntimeService {
     return snapshot()
   }
   public func start() async throws -> RuntimeStatus {
+    try await start(remainingSeconds: nil)
+  }
+  public func start(remainingSeconds: Int?) async throws -> RuntimeStatus {
+    if let remainingSeconds, !(1...3_600).contains(remainingSeconds) {
+      throw RuntimeError(.invalidRequest, "remaining_seconds must be an integer from 1 to 3600")
+    }
     try beginMutation()
     let operationGeneration = generation
     defer { if generation == operationGeneration { mutationActive = false } }
-    return try await boot()
+    return try await boot(
+      remainingSeconds: remainingSeconds, operationGeneration: operationGeneration)
+  }
+  public func progress() -> RuntimeProgress {
+    let elapsed: Int
+    if let bootStartedAt {
+      elapsed = max(0, Int(bootStartedAt.duration(to: .now).components.seconds))
+    } else {
+      elapsed = startedAt.map { max(0, Int(Date().timeIntervalSince($0))) } ?? 0
+    }
+    return RuntimeProgress(
+      apiVersion: 1, schemaVersion: 1, state: state, ready: state == .ready && guestHealth != nil,
+      operation: state == .starting || mutationActive ? "start" : nil, phase: bootPhase,
+      elapsedSeconds: elapsed, expectedReboot: bootExpectedReboot, detail: nil, lastError: lastError
+    )
   }
   public func stop(force: Bool = false) async throws -> RuntimeStatus {
     if force, mutationActive, state == .starting, let startingTask {
@@ -109,7 +134,7 @@ public actor RuntimeService {
     let operationGeneration = generation
     defer { if generation == operationGeneration { mutationActive = false } }
     _ = try await stopLocked(force: false)
-    return try await boot()
+    return try await boot(remainingSeconds: nil, operationGeneration: operationGeneration)
   }
   public func delete(confirm: Bool) async throws -> RuntimeStatus {
     try beginMutation()
@@ -138,13 +163,20 @@ public actor RuntimeService {
     generation &+= 1
     mutationActive = true
   }
-  private func boot() async throws -> RuntimeStatus {
-    let task = Task { try await self.startLocked() }
+  private func boot(remainingSeconds: Int?, operationGeneration: UInt64) async throws
+    -> RuntimeStatus
+  {
+    let task = Task {
+      try await self.startLocked(
+        remainingSeconds: remainingSeconds, operationGeneration: operationGeneration)
+    }
     startingTask = task
     defer { startingTask = nil }
     return try await task.value
   }
-  private func startLocked() async throws -> RuntimeStatus {
+  private func startLocked(remainingSeconds: Int?, operationGeneration: UInt64) async throws
+    -> RuntimeStatus
+  {
     let value = try config()
     // This operation owns the mutation gate, so refresh() intentionally cannot run here.
     if state == .ready {
@@ -170,32 +202,108 @@ public actor RuntimeService {
     guard (await driver.capabilities()).supported else {
       throw RuntimeError(.unavailable, "Apple virtualization is unavailable on this host")
     }
+    let limit =
+      remainingSeconds.map { min($0, value.readinessTimeoutSeconds) }
+      ?? value.readinessTimeoutSeconds
+    let deadline = ContinuousClock.now.advanced(by: .seconds(limit))
     state = .starting
     lastError = nil
     guestHealth = nil
+    bootPhase = "booting"
+    bootExpectedReboot = false
+    bootStartedAt = .now
     logger.info("Starting outer Linux VM")
     do {
+      var restarted = false
+      var sawReboot = false
+      var offset = try GuestObservationParser.endOffset(store.paths.serialLog)
+      var attemptOffset = offset
       try Task.checkCancellation()
       try await driver.start(configuration: value, paths: store.paths)
       startedAt = Date()
-      let deadline = ContinuousClock.now.advanced(by: .seconds(value.readinessTimeoutSeconds))
-      while ContinuousClock.now < deadline {
+      while true {
+        guard ContinuousClock.now < deadline else {
+          throw RuntimeError(
+            .timeout, "Incus readiness timed out; inspect serial.log, then stop/start to recover")
+        }
         try Task.checkCancellation()
-        guard await driver.isRunning() else {
+        guard generation == operationGeneration, state == .starting else {
+          throw CancellationError()
+        }
+        let read = try GuestObservationParser.read(url: store.paths.serialLog, from: offset)
+        offset = read.offset
+        if let phase = read.observations.last?.stage { bootPhase = phase }
+        if read.observations.contains(where: { $0.expectsKernelReboot }) {
+          sawReboot = true
+          bootExpectedReboot = true
+        }
+        if !(await driver.isRunning()) {
+          // VZ can report the guest stopped before the serial file receives the
+          // marker emitted immediately before poweroff. Drain only this attempt.
+          let drainDeadline = min(deadline, ContinuousClock.now.advanced(by: .seconds(15)))
+          while !sawReboot && ContinuousClock.now < drainDeadline {
+            try Task.checkCancellation()
+            guard generation == operationGeneration, state == .starting else {
+              throw CancellationError()
+            }
+            guard ContinuousClock.now < deadline else { break }
+            let end = try GuestObservationParser.endOffset(store.paths.serialLog)
+            if offset < attemptOffset { offset = attemptOffset }
+            if offset >= end {
+              try await Task.sleep(for: .milliseconds(50))
+              continue
+            }
+            let again = try GuestObservationParser.read(url: store.paths.serialLog, from: offset)
+            if again.offset <= offset {
+              try await Task.sleep(for: .milliseconds(50))
+              continue
+            }
+            offset = again.offset
+            if again.observations.contains(where: \.expectsKernelReboot) {
+              sawReboot = true
+              bootExpectedReboot = true
+            }
+            if let phase = again.observations.last?.stage { bootPhase = phase }
+          }
+          if sawReboot && !restarted {
+            try RebootAllowanceStore.consume(paths: store.paths)
+            try Task.checkCancellation()
+            guard generation == operationGeneration, state == .starting else {
+              throw CancellationError()
+            }
+            guard ContinuousClock.now < deadline else {
+              throw RuntimeError(
+                .timeout, "Incus readiness timed out before the expected kernel restart")
+            }
+            restarted = true
+            sawReboot = false
+            bootPhase = "expected_reboot"
+            attemptOffset = try GuestObservationParser.endOffset(store.paths.serialLog)
+            offset = attemptOffset
+            try await driver.start(configuration: value, paths: store.paths)
+            startedAt = Date()
+            continue
+          }
+          if sawReboot && restarted {
+            throw RuntimeError(
+              .unavailable,
+              "The guest requested another kernel restart after the fresh-bootstrap allowance was consumed. The runtime was not deleted."
+            )
+          }
           throw RuntimeError(
             .unavailable, "Guest exited before Incus became ready; inspect serial.log")
         }
         if let health = try? await driver.health(), health.protocolVersion == 1 {
           try Task.checkCancellation()
+          guard generation == operationGeneration else { throw CancellationError() }
           guestHealth = health
           state = .ready
+          bootPhase = "ready"
           logger.info("Incus ready: \(health.incusVersion, privacy: .public)")
           return snapshot()
         }
         try await Task.sleep(for: .milliseconds(500))
       }
-      throw RuntimeError(
-        .timeout, "Incus readiness timed out; inspect serial.log, then stop/start to recover")
     } catch {
       state = .failed
       lastError = error.localizedDescription

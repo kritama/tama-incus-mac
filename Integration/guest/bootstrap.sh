@@ -4,6 +4,7 @@ umask 077
 boot=${TAMA_BOOT_ROOT:-}
 storage_script=${TAMA_STORAGE_SCRIPT:-/usr/local/libexec/tama-storage.sh}
 echo 'TAMA_ALPINE_PROVISIONING'
+echo 'MACUS_OBSERVATION v1 stage=packages'
 # Cloud-init runcmd runs once. Register continuation before any kernel reboot.
 if [ -x "$boot/etc/init.d/tama-bootstrap" ]; then
     rc-update add tama-bootstrap default
@@ -13,6 +14,7 @@ if [ -f "$boot/var/lib/tama-bootstrap-complete" ]; then
     kernel_record=$(cat "$boot/etc/tama-zfs-qualified-kernel" 2>/dev/null || true)
     kernel_record=$(printf '%s' "$kernel_record" | tr -d '[:space:]')
     if [ -z "$kernel_record" ]; then
+        echo 'MACUS_OBSERVATION v1 stage=failed code=kernel_record_missing' >&2
         echo 'TAMA_BOOTSTRAP_KERNEL_RECORD_MISSING: completed marker has no qualified-kernel record; refusing to reprovision' >&2
         exit 1
     fi
@@ -79,11 +81,13 @@ apk --timeout 30 add --no-cache \
 if [ -d "$boot/boot/dtbs-lts" ]; then rm -rf "$boot/boot/dtbs-lts"; fi
 if ! apk --timeout 30 add --no-cache \
     linux-lts=6.18.55-r0 zfs=2.4.4-r0 zfs-libs=2.4.4-r0 zfs-lts=6.18.55-r0 zfs-openrc=2.4.4-r0; then
+    echo 'MACUS_OBSERVATION v1 stage=failed code=qualified_revision_unavailable' >&2
     echo 'TAMA_ZFS_QUALIFIED_REVISION_UNAVAILABLE: Alpine v3.24 no longer provides linux-lts=6.18.55-r0 zfs=2.4.4-r0; refusing to substitute' >&2
     exit 1
 fi
 apk info -v | grep '^linux-lts-' | sed 's/^linux-lts-//;s/-r/-/;s/$/-lts/' > "$boot/etc/tama-zfs-qualified-kernel"
 if [ "$(uname -r)" != "$(cat "$boot/etc/tama-zfs-qualified-kernel")" ]; then
+    echo 'MACUS_OBSERVATION v1 stage=kernel_transition state=expected_reboot'
     echo TAMA_ZFS_KERNEL_REBOOT_REQUIRED
     sync
     poweroff
@@ -122,7 +126,13 @@ rc-update add tama-bridge default
 rc-update add dbus default
 rc-update add acpid default
 rc-service acpid start
-rc-service tama-storage start || { cat "$boot/var/log/tama-storage.log"; exit 1; }
+echo 'MACUS_OBSERVATION v1 stage=storage'
+rc-service tama-storage start || {
+    echo 'MACUS_OBSERVATION v1 stage=failed code=storage_refused' >&2
+    cat "$boot/var/log/tama-storage.log"
+    exit 1
+}
+echo 'MACUS_OBSERVATION v1 stage=incus'
 rc-service dbus start
 rc-service incusd start
 # /1.0 can respond before startup cleanup/autostart completes.
@@ -132,6 +142,7 @@ started=$boot/var/lib/incus/.tama-preseed-started
 backend=$(cat "$boot/run/tama-storage-backend" 2>/dev/null || true)
 if [ -e "$pending" ]; then
     [ ! -e "$started" ] || {
+        echo 'MACUS_OBSERVATION v1 stage=failed code=initialization_interrupted' >&2
         echo 'Interrupted initialization; preserve data for explicit recovery/reset' >&2
         exit 1
     }
@@ -195,4 +206,5 @@ printf 'complete\n' > "$boot/var/lib/tama-bootstrap-complete"
 sync
 rc-update del tama-bootstrap default || true
 touch "$boot/run/tama-bootstrap-ready"
+echo 'MACUS_OBSERVATION v1 stage=ready'
 printf 'TAMA_BOOTSTRAP_READY\n'

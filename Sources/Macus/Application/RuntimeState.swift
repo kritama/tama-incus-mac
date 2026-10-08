@@ -4,6 +4,19 @@ public enum RuntimeState: String, Codable, Sendable {
   case absent, stopped, starting, ready, stopping, failed
 }
 
+public struct RuntimeProgress: Codable, Sendable {
+  public let apiVersion: Int
+  public let schemaVersion: Int
+  public let state: RuntimeState
+  public let ready: Bool
+  public let operation: String?
+  public let phase: String?
+  public let elapsedSeconds: Int
+  public let expectedReboot: Bool
+  public let detail: String?
+  public let lastError: String?
+}
+
 public struct RuntimeStatus: Codable, Sendable {
   public let apiVersion: Int = 1
   public let state: RuntimeState

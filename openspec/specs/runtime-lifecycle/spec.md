@@ -82,3 +82,32 @@ The service SHALL durably record explicit reset intent before deleting owned fil
 
 - **WHEN** the daemon restarts after confirmed deletion removed disks but left configuration
 - **THEN** it completes only the confirmed service-owned cleanup and reports absent
+
+### Requirement: Expected bootstrap kernel restart
+
+During fresh provisioning, start SHALL automatically restart a stopped guest at most once when the current boot emitted the trusted expected-kernel-reboot signal. The allowance SHALL be durably scoped to the fresh bootstrap and remain bounded across coordinator or daemon restarts. A confirmed runtime deletion removes that allowance so the next created runtime receives one new allowance. Ordinary stop, start, restart, cancellation, and daemon restart MUST NOT replenish it. Unexpected exits, stale signals, and repeated reboot requests SHALL fail. Live helper and Incus readiness SHALL still be required.
+
+#### Scenario: Expected first-boot shutdown
+
+- **WHEN** fresh provisioning signals the qualified-kernel transition and the guest actually stops
+- **THEN** start records the consumed allowance, boots the same runtime once more within the remaining deadline, and waits for live readiness
+
+#### Scenario: Stale log marker
+
+- **WHEN** an old serial log contains an expected-reboot marker and the current guest exits without a current-boot signal
+- **THEN** start reports unexpected exit and does not automatically restart
+
+#### Scenario: Repeated transition request
+
+- **WHEN** the guest requests another kernel restart after the fresh-bootstrap allowance was consumed
+- **THEN** start fails with an actionable error rather than entering a reboot loop or deleting the runtime
+
+#### Scenario: Confirmed deletion starts a new allowance
+
+- **WHEN** a consumed allowance belongs to a runtime that is explicitly confirmed deleted and a new runtime is created
+- **THEN** the new runtime has one available allowance and an ordinary restart of the old runtime would still have seen it consumed
+
+#### Scenario: Force stop during transition
+
+- **WHEN** explicit force stop cancels a boot while an expected restart is pending
+- **THEN** the mutation gate remains owned through cancellation and stop, and no pending automatic restart occurs

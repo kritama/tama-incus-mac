@@ -31,12 +31,10 @@ struct ProcessCommandRunner: LocalCommandRunner {
     process.standardOutput = output
     process.standardError = error
     defer {
-      // Cleanup also runs when an async sleep throws on cancellation. A
-      // descendant may retain the pipe writer, so never wait for pipe EOF.
-      if process.isRunning {
-        kill(process.processIdentifier, SIGKILL)
-        process.waitUntilExit()
-      }
+      // Foundation's waitUntilExit can block forever after the termination
+      // notification is lost. Reap only this recorded PID, and never kill a
+      // recycled PID that is no longer our child.
+      terminateAndReap(process)
       try? output.fileHandleForReading.close()
       try? error.fileHandleForReading.close()
       try? output.fileHandleForWriting.close()
@@ -68,6 +66,35 @@ struct ProcessCommandRunner: LocalCommandRunner {
           status: process.terminationStatus, stdout: stdout, stderr: stderr)
       }
       try await Task.sleep(for: .milliseconds(20))
+    }
+  }
+
+  private func terminateAndReap(_ process: Process) {
+    let pid = process.processIdentifier
+    guard pid > 1 else { return }
+    var status: Int32 = 0
+    if reap(pid, status: &status, flags: WNOHANG) != .running { return }
+    // waitpid confirmed this PID is still our child, so SIGKILL cannot hit a reuse.
+    guard kill(pid, SIGKILL) == 0 || errno == ESRCH else { return }
+    let deadline = ContinuousClock.now.advanced(by: .milliseconds(500))
+    while ContinuousClock.now < deadline {
+      if reap(pid, status: &status, flags: WNOHANG) != .running { return }
+      usleep(1_000)
+    }
+    _ = reap(pid, status: &status, flags: WNOHANG)
+  }
+
+  private enum Reap: Equatable {
+    case reaped, absent, running
+  }
+
+  private func reap(_ pid: pid_t, status: inout Int32, flags: Int32) -> Reap {
+    while true {
+      let result = waitpid(pid, &status, flags)
+      if result == pid { return .reaped }
+      if result == 0 { return .running }
+      if errno == EINTR { continue }
+      return .absent
     }
   }
 

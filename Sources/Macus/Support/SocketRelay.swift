@@ -15,7 +15,7 @@ public enum SocketRelay {
 /// Mutable state is confined to queue. Each direction buffers at most 64 KiB;
 /// idle sockets consume dispatch sources rather than blocking worker threads.
 private final class NonblockingRelay: @unchecked Sendable {
-  let queue = DispatchQueue(label: "com.kritama.macus.relay")
+  let queue = DispatchQueue(label: "com.upmaru.macus.relay")
   let first: SocketDescriptor
   let second: SocketDescriptor
   var directions: [RelayDirection] = []

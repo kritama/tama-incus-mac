@@ -1,0 +1,81 @@
+{
+  "schema": "macus-start-experience-acceptance/v1",
+  "recorded_at": "2026-10-07T11:01:01Z",
+  "claim": "isolated first-use start on hardware; not a unit-test substitute",
+  "host": {
+    "os": "macOS 27.0.1",
+    "architecture": "arm64",
+    "cpu": "Apple M4 Max",
+    "homebrew": "7.0.8"
+  },
+  "binary": "/private/tmp/ms7e/install/bin/macus",
+  "working_directory": "/private/tmp",
+  "state_directory": "/private/tmp/ms7e/st",
+  "incus_conf": "/private/tmp/ms7e/client",
+  "remote": "macus-acc",
+  "service_label": "com.upmaru.macus.42ae29138d65",
+  "service_parent_pid": 1,
+  "untouched": ["~/.tama/incus-mac", "default Incus remote", "persistent com.upmaru.macus LaunchAgent"],
+  "acquisition": {
+    "successful_run": "verified cache reuse",
+    "cache_source": "hash-checked copy of the archive downloaded by the prior isolated run",
+    "downloaded_bytes": 626889284,
+    "download_evidence": "/private/tmp/ms7d/logs/start.err",
+    "note": "The successful process did not redownload. It verified the previously downloaded archive and booted that cache."
+  },
+  "guest": {
+    "os": "Alpine Linux 3.24.2",
+    "kernel": "6.18.55-0-lts",
+    "incus_server": "7.0.1",
+    "storage": "zfs 2.4.4-1",
+    "driver": "lxc | qemu",
+    "qemu": "11.0.3",
+    "lxc": "7.0.0"
+  },
+  "client": {
+    "before": "absent",
+    "installed_by_start": true,
+    "formula": "incus",
+    "version": "7.5.1",
+    "path": "/opt/homebrew/bin/incus",
+    "repeat_start_installed": false
+  },
+  "start": {
+    "began": "2026-10-07T10:49:14Z",
+    "finished": "2026-10-07T10:51:16Z",
+    "exit": 0,
+    "ready": true,
+    "connected": true,
+    "expected_reboot_observed": true,
+    "allowance": "consumed",
+    "live_capabilities": {
+      "vm": true,
+      "nested_virtualization": true,
+      "oci": true,
+      "system_containers": true,
+      "kvm": true
+    }
+  },
+  "workloads": {
+    "dns": "deb.debian.org resolved from macus-acc:smoke",
+    "marker": "macus-ok",
+    "runtime_restart": "second runtime restart returned ready; marker survived. The first restart after initial boot failed with 'Invalid virtual machine configuration. The boot loader is invalid.' Disks were preserved and a following runtime start recovered.",
+    "service_restart": "bootout of the isolated agent, bootstrap, and runtime start restored readiness; marker survived. The first bootstrap immediately after bootout returned I/O error 5; the retry succeeded.",
+    "repeat_start": "2026-10-07T10:56:34Z to 2026-10-07T10:56:35Z; acquisition skipped; client reused",
+    "terminal_close": "serve parent pid was 1 after the start command returned",
+    "nested_guest_booted": false,
+    "nested_note": "Live health reported kvm true and Incus reported driver lxc | qemu. No nested guest was launched in this run."
+  },
+  "cleanup": {
+    "smoke_deleted": true,
+    "runtime_stopped": true,
+    "isolated_agents_unloaded": true,
+    "failure_artifacts_retained": [
+      "/private/tmp/ms7acc",
+      "/private/tmp/ms7b",
+      "/private/tmp/ms7c",
+      "/private/tmp/ms7d",
+      "/private/tmp/ms7e"
+    ]
+  }
+}
