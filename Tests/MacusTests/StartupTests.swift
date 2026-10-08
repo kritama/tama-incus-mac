@@ -873,9 +873,11 @@ final class RecordingDownloader: ApplianceDownloader, @unchecked Sendable {
 
 final class FakeLaunchControl: LaunchControl, @unchecked Sendable {
   var bootstrapped: [String] = []
+  var started: [String] = []
   var jobs: [String: LaunchJob] = [:]
   func printJob(label: String, timeout: Int) async throws -> LaunchJob? { jobs[label] }
   func bootstrap(plist: URL, timeout: Int) async throws { bootstrapped.append(plist.path) }
+  func kickstart(label: String, timeout: Int) async throws { started.append(label) }
   func plist(at url: URL) throws -> [String: Any]? {
     guard FileManager.default.fileExists(atPath: url.path) else { return nil }
     return try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil)

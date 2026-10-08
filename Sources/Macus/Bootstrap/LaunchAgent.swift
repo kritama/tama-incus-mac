@@ -4,6 +4,7 @@ import Foundation
 
 struct LaunchJob: Sendable, Equatable {
   var label: String
+  /// True when launchctl reports the job running or starting. A registered stopped job is false.
   var loaded: Bool
   var programArguments: [String]
 }
@@ -11,7 +12,78 @@ struct LaunchJob: Sendable, Equatable {
 protocol LaunchControl: Sendable {
   func printJob(label: String, timeout: Int) async throws -> LaunchJob?
   func bootstrap(plist: URL, timeout: Int) async throws
+  func kickstart(label: String, timeout: Int) async throws
   func plist(at url: URL) throws -> [String: Any]?
+}
+
+enum LaunchJobParser {
+  /// Reads authoritative identity from `launchctl print` text. A chunk boundary or disk plist is not a source.
+  static func parse(text: String, label: String) throws -> LaunchJob {
+    let lines = text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map(
+      String.init)
+    let states = lines.compactMap { stateValue($0) }
+    guard states.count == 1, let state = states.first else {
+      throw ambiguous(label)
+    }
+    let loaded: Bool
+    switch state {
+    case "not running":
+      loaded = false
+    case "running", "spawn scheduled", "starting", "xpcproxy":
+      loaded = true
+    default:
+      throw ambiguous(label)
+    }
+    let arguments = try argumentBlocks(lines, label: label)
+    return LaunchJob(label: label, loaded: loaded, programArguments: arguments)
+  }
+
+  private static func stateValue(_ line: String) -> String? {
+    let trimmed = line.trimmingCharacters(in: .whitespaces)
+    let prefix = "state = "
+    guard trimmed.hasPrefix(prefix) else { return nil }
+    let value = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+    return value.isEmpty ? nil : value
+  }
+
+  private static func argumentBlocks(_ lines: [String], label: String) throws -> [String] {
+    var blocks: [[String]] = []
+    var index = 0
+    while index < lines.count {
+      let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
+      guard trimmed == "arguments = {" else {
+        index += 1
+        continue
+      }
+      var arguments: [String] = []
+      var closed = false
+      index += 1
+      while index < lines.count {
+        let inner = lines[index].trimmingCharacters(in: .whitespaces)
+        if inner == "}" {
+          closed = true
+          break
+        }
+        if inner.isEmpty {
+          throw ambiguous(label)
+        }
+        arguments.append(inner)
+        index += 1
+      }
+      guard closed, !arguments.isEmpty else { throw ambiguous(label) }
+      blocks.append(arguments)
+      index += 1
+    }
+    guard blocks.count == 1, let arguments = blocks.first else { throw ambiguous(label) }
+    return arguments
+  }
+
+  private static func ambiguous(_ label: String) -> RuntimeError {
+    RuntimeError(
+      .invalidConfiguration,
+      "launchctl did not report an unambiguous executable and state for \(label). macus start will not start or replace that service."
+    )
+  }
 }
 
 struct ProcessLaunchControl: LaunchControl {
@@ -24,13 +96,20 @@ struct ProcessLaunchControl: LaunchControl {
       executable: "/bin/launchctl", arguments: ["print", "gui/\(uid)/\(label)"],
       environment: environment, timeout: timeout)
     guard result.status == 0 else { return nil }
-    let text =
-      String(decoding: result.stdout, as: UTF8.self)
-      + String(decoding: result.stderr, as: UTF8.self)
-    return LaunchJob(
-      label: label,
-      loaded: !text.contains("state = not running") || text.contains("state = running"),
-      programArguments: [])
+    let text = String(decoding: result.stdout, as: UTF8.self)
+    return try LaunchJobParser.parse(text: text, label: label)
+  }
+
+  func kickstart(label: String, timeout: Int) async throws {
+    let result = try await runner.run(
+      executable: "/bin/launchctl", arguments: ["kickstart", "gui/\(uid)/\(label)"],
+      environment: environment, timeout: timeout)
+    guard result.status == 0 else {
+      let detail = terminalSafe(
+        String(decoding: result.stderr, as: UTF8.self).prefix(500).description)
+      throw RuntimeError(
+        .io, "launchctl kickstart failed\(detail.isEmpty ? "" : ": \(detail)")")
+    }
   }
 
   func bootstrap(plist: URL, timeout: Int) async throws {

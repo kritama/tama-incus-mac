@@ -177,18 +177,24 @@ private final class StartContext: @unchecked Sendable {
     }
     let expected = LaunchAgentPlan.arguments(
       executable: executable, stateDirectory: paths.directory)
-    let planned = LaunchAgentPlan.plistURL(
-      stateDirectory: paths.directory, home: dependencies.homeDirectory,
-      launchAgents: dependencies.launchAgentsDirectory)
-    // A loaded job must be validated before the endpoint exists. Bootstrapping it again
-    // is the launchctl I/O error 5 race.
+    // A registered job is identified from launchctl before any start or bootstrap.
     if let loaded = try await dependencies.launchControl.printJob(
       label: label, timeout: try budget.remainingSeconds(at: dependencies.now()))
     {
-      try validateLoadedJob(loaded, plist: planned, label: label, arguments: expected)
+      // Identity comes from launchctl, not the mutable on-disk plist.
+      try validateLoadedJob(loaded, label: label, arguments: expected)
+      if !loaded.loaded {
+        try Task.checkCancellation()
+        try await dependencies.launchControl.kickstart(
+          label: label, timeout: try budget.remainingSeconds(at: dependencies.now()))
+      }
       try await waitForEndpoint(paths)
+      try Task.checkCancellation()
+      guard dependencies.now() < budget.deadline else {
+        throw RuntimeError(.timeout, "Startup deadline exceeded")
+      }
       serviceOwnership = "launchd"
-      emit(.serviceActivation, .complete, detail: "reused")
+      emit(.serviceActivation, .complete, detail: loaded.loaded ? "reused" : "kickstarted")
       return ("launchd", label)
     }
     if try await compatibleDaemon(paths) {
@@ -335,23 +341,15 @@ private final class StartContext: @unchecked Sendable {
   }
 
   private func validateLoadedJob(
-    _ job: LaunchJob, plist: URL, label: String, arguments expected: [String]
+    _ job: LaunchJob, label: String, arguments expected: [String]
   ) throws {
-    if !job.programArguments.isEmpty, job.programArguments != expected {
+    guard !job.programArguments.isEmpty else {
       throw RuntimeError(
-        .conflict,
-        "Service \(label) already points at a different executable or state. macus start will not replace that plist."
+        .invalidConfiguration,
+        "launchctl did not report an unambiguous executable and state for \(label). macus start will not start or replace that service."
       )
     }
-    guard let object = try dependencies.launchControl.plist(at: plist) else {
-      throw RuntimeError(
-        .conflict,
-        "Service \(label) is loaded without a matching registration. macus start will not bootstrap another job."
-      )
-    }
-    let existingLabel = object["Label"] as? String
-    let existingArguments = object["ProgramArguments"] as? [String]
-    guard existingLabel == label, existingArguments == expected else {
+    guard job.programArguments == expected else {
       throw RuntimeError(
         .conflict,
         "Service \(label) already points at a different executable or state. macus start will not replace that plist."

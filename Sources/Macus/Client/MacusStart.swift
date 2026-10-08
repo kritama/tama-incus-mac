@@ -53,7 +53,11 @@ func runStart(
   let task = Task { try await StartupCoordinator(dependencies: dependencies).run(request) }
   let signals = overrides.installSignals ? SignalCancellation(task: task) : nil
   defer { signals?.cancel() }
-  let result = try await task.value
+  let result = try await withTaskCancellationHandler {
+    try await task.value
+  } onCancel: {
+    task.cancel()
+  }
   if json {
     streams.writeOutput(try jsonText(resultObject(result)))
   } else {

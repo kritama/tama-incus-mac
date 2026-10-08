@@ -673,6 +673,269 @@ private final class BudgetRunner: LocalCommandRunner, @unchecked Sendable {
   launch.server?.stop()
 }
 
+@Test func launchctlPrintParsesStoppedRunningAndSpacedArguments() throws {
+  let stopped = """
+    gui/501/com.upmaru.macus.abc = {
+    \tstate = not running
+    \tprogram = /usr/bin/true
+    \targuments = {
+    \t\t/usr/bin/true
+    \t\tserve
+    \t\t--state-dir
+    \t\t/tmp/my state
+    \t}
+    }
+    """
+  let job = try LaunchJobParser.parse(text: stopped, label: "com.upmaru.macus.abc")
+  #expect(job.loaded == false)
+  #expect(job.programArguments == ["/usr/bin/true", "serve", "--state-dir", "/tmp/my state"])
+  let running = stopped.replacingOccurrences(of: "state = not running", with: "state = running")
+  #expect(try LaunchJobParser.parse(text: running, label: "com.upmaru.macus.abc").loaded)
+  let starting = stopped.replacingOccurrences(
+    of: "state = not running", with: "state = spawn scheduled")
+  #expect(try LaunchJobParser.parse(text: starting, label: "com.upmaru.macus.abc").loaded)
+  #expect(throws: RuntimeError.self) {
+    try LaunchJobParser.parse(text: "state = running\n", label: "com.upmaru.macus.abc")
+  }
+  #expect(throws: RuntimeError.self) {
+    try LaunchJobParser.parse(
+      text: "state = waiting\narguments = {\n\t/usr/bin/true\n}\n", label: "com.upmaru.macus.abc")
+  }
+}
+
+@Test func stoppedMatchingJobIsKickstartedThroughProductionAdapter() async throws {
+  let fixture = try ServiceFixture()
+  defer { fixture.remove() }
+  let runner = LaunchctlScript()
+  runner.printText = launchctlPrint(
+    label: fixture.label, state: "not running", arguments: fixture.expected)
+  runner.onKickstart = {
+    fixture.openEndpoint()
+  }
+  let launch = ProcessLaunchControl(runner: runner, environment: [:], uid: 501)
+  let status = await fixture.start(launch: launch, timeout: 5)
+  #expect(status == 0)
+  #expect(
+    runner.commands == [
+      ["print", "gui/501/\(fixture.label)"], ["kickstart", "gui/501/\(fixture.label)"],
+    ])
+  #expect(try Data(contentsOf: fixture.plist) == fixture.plistBytes)
+  #expect(!runner.commands.contains { $0.first == "bootstrap" || $0.contains("-k") })
+}
+
+@Test func runningMatchingJobWaitsWithoutKickstart() async throws {
+  let fixture = try ServiceFixture()
+  defer { fixture.remove() }
+  let runner = LaunchctlScript()
+  runner.printText = launchctlPrint(
+    label: fixture.label, state: "spawn scheduled", arguments: fixture.expected)
+  let launch = ProcessLaunchControl(runner: runner, environment: [:], uid: 501)
+  let task = Task { await fixture.start(launch: launch, timeout: 5) }
+  try await Task.sleep(for: .milliseconds(200))
+  #expect(runner.commands == [["print", "gui/501/\(fixture.label)"]])
+  fixture.openEndpoint()
+  #expect(await task.value == 0)
+  #expect(!runner.commands.contains { $0.first == "kickstart" || $0.first == "bootstrap" })
+  #expect(try Data(contentsOf: fixture.plist) == fixture.plistBytes)
+}
+
+@Test func launchctlIdentityConflictIgnoresMatchingDiskPlist() async throws {
+  let fixture = try ServiceFixture()
+  defer { fixture.remove() }
+  let sentinel = try Data(contentsOf: fixture.paths.dataDisk)
+  let runner = LaunchctlScript()
+  runner.printText = launchctlPrint(
+    label: fixture.label, state: "running",
+    arguments: ["/different/macus", "serve", "--state-dir", "/different/state"])
+  let launch = ProcessLaunchControl(runner: runner, environment: [:], uid: 501)
+  let capture = StartCapture()
+  let status = await fixture.start(launch: launch, timeout: 2, capture: capture)
+  #expect(status == 1)
+  #expect(runner.commands == [["print", "gui/501/\(fixture.label)"]])
+  #expect(capture.error.contains("will not replace"))
+  #expect(try Data(contentsOf: fixture.plist) == fixture.plistBytes)
+  #expect(try Data(contentsOf: fixture.paths.dataDisk) == sentinel)
+}
+
+@Test func ambiguousLaunchctlIdentityIsRejectedBeforeActivation() async throws {
+  let fixture = try ServiceFixture()
+  defer { fixture.remove() }
+  let runner = LaunchctlScript()
+  runner.printText = "gui/501/\(fixture.label) = {\n\tstate = running\n}\n"
+  let launch = ProcessLaunchControl(runner: runner, environment: [:], uid: 501)
+  let capture = StartCapture()
+  let status = await fixture.start(launch: launch, timeout: 2, capture: capture)
+  #expect(status == 1)
+  #expect(capture.error.contains("unambiguous"))
+  #expect(runner.commands == [["print", "gui/501/\(fixture.label)"]])
+  #expect(try Data(contentsOf: fixture.plist) == fixture.plistBytes)
+}
+
+@Test func kickstartFailureAndDeadlineDoNotRetry() async throws {
+  let fixture = try ServiceFixture()
+  defer { fixture.remove() }
+  let runner = LaunchctlScript()
+  runner.printText = launchctlPrint(
+    label: fixture.label, state: "not running", arguments: fixture.expected)
+  runner.kickstartStatus = 1
+  let launch = ProcessLaunchControl(runner: runner, environment: [:], uid: 501)
+  let capture = StartCapture()
+  let started = ContinuousClock.now
+  let status = await fixture.start(launch: launch, timeout: 2, capture: capture)
+  #expect(status == 1)
+  #expect(capture.error.contains("kickstart failed"))
+  #expect(runner.commands.filter { $0.first == "kickstart" }.count == 1)
+  #expect(!runner.commands.contains { $0.first == "bootstrap" })
+  #expect(started.duration(to: .now) < .seconds(2))
+
+  let slow = LaunchctlScript()
+  slow.printText = runner.printText
+  slow.kickstartDelay = .seconds(30)
+  let again = ProcessLaunchControl(runner: slow, environment: [:], uid: 501)
+  let second = StartCapture()
+  let began = ContinuousClock.now
+  let timed = await fixture.start(launch: again, timeout: 2, capture: second)
+  #expect(timed == 1)
+  #expect(second.error.contains("deadline") || second.error.contains("timeout"))
+  #expect(slow.commands.filter { $0.first == "kickstart" }.count == 1)
+  #expect(!slow.commands.contains { $0.first == "bootstrap" })
+  #expect(began.duration(to: .now) < .seconds(4))
+}
+
+@Test func absentRegistrationBootstrapsOnceThroughProductionAdapter() async throws {
+  let fixture = try ServiceFixture()
+  defer { fixture.remove() }
+  let runner = LaunchctlScript()
+  runner.printStatus = 1
+  runner.onBootstrap = { fixture.openEndpoint() }
+  let launch = ProcessLaunchControl(runner: runner, environment: [:], uid: 501)
+  #expect(await fixture.start(launch: launch, timeout: 5) == 0)
+  #expect(runner.commands.filter { $0.first == "bootstrap" }.count == 1)
+  #expect(!runner.commands.contains { $0.first == "kickstart" })
+}
+
+@Test func serviceDiscoveryCancellationDoesNotActivate() async throws {
+  let fixture = try ServiceFixture()
+  defer { fixture.remove() }
+  let runner = LaunchctlScript()
+  runner.printDelay = .seconds(30)
+  let launch = ProcessLaunchControl(runner: runner, environment: [:], uid: 501)
+  let task = Task { await fixture.start(launch: launch, timeout: 30) }
+  try await Task.sleep(for: .milliseconds(100))
+  task.cancel()
+  _ = await task.value
+  #expect(runner.commands.filter { $0.first == "kickstart" || $0.first == "bootstrap" }.isEmpty)
+}
+
+private func launchctlPrint(label: String, state: String, arguments: [String]) -> String {
+  let body = arguments.map { "\t\t\($0)" }.joined(separator: "\n")
+  return """
+    gui/501/\(label) = {
+    \tstate = \(state)
+    \targuments = {
+    \(body)
+    \t}
+    }
+    """
+}
+
+private final class ServiceFixture: @unchecked Sendable {
+  let root: URL
+  let paths: RuntimePaths
+  let tools: StartTools
+  let label: String
+  let expected: [String]
+  let plist: URL
+  let plistBytes: Data
+  var server: ScriptedSocket?
+
+  init() throws {
+    root = URL(fileURLWithPath: "/tmp/macus-ctl-\(UUID().uuidString.prefix(8))")
+    try FileManager.default.createDirectory(
+      at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    tools = try StartTools()
+    let state = root.appendingPathComponent("st")
+    paths = RuntimePaths(directory: state)
+    try paths.prepare()
+    try FileManager.default.createDirectory(
+      at: paths.runtimeDirectory, withIntermediateDirectories: true)
+    try Data("root-sentinel".utf8).write(to: paths.rootDisk)
+    try Data("data-sentinel".utf8).write(to: paths.dataDisk)
+    try Data("{\"appliance_manifest_path\":\"/tmp/manifest.json\"}".utf8).write(to: paths.config)
+    label = LaunchAgentPlan.label(stateDirectory: state, home: root)
+    expected = LaunchAgentPlan.arguments(executable: "/usr/bin/true", stateDirectory: state)
+    plist = try LaunchAgentPlan.write(
+      stateDirectory: state, home: root, launchAgents: root.appendingPathComponent("agents"),
+      executable: "/usr/bin/true")
+    plistBytes = try Data(contentsOf: plist)
+  }
+
+  func start(launch: ProcessLaunchControl, timeout: Int, capture: StartCapture = StartCapture())
+    async -> Int32
+  {
+    var overrides = tools.overrides(downloader: RecordingDownloader(), launchControl: launch)
+    overrides.homeDirectory = root
+    overrides.uid = 501
+    overrides.executablePath = { "/usr/bin/true" }
+    return await MacusCLI.run(
+      arguments: [
+        "--state-dir", paths.directory.path, "--json", "--progress", "none", "--timeout",
+        String(timeout), "--incus", tools.incus, "start",
+      ],
+      environment: tools.environment, streams: capture.streams, overrides: overrides)
+  }
+
+  func openEndpoint() {
+    let state = paths.directory
+    server = try? ScriptedSocket(name: "runtime.sock", directory: state) { method, path, _ in
+      readyRuntime(method: method, path: path, directory: state)
+    }
+  }
+
+  func remove() {
+    server?.stop()
+    tools.remove()
+    try? FileManager.default.removeItem(at: root)
+  }
+}
+
+private final class LaunchctlScript: LocalCommandRunner, @unchecked Sendable {
+  var commands: [[String]] = []
+  var printText = ""
+  var printStatus: Int32 = 0
+  var kickstartStatus: Int32 = 0
+  var printDelay: Duration = .zero
+  var kickstartDelay: Duration = .zero
+  var onKickstart: (@Sendable () -> Void)?
+  var onBootstrap: (@Sendable () -> Void)?
+  func run(
+    executable: String, arguments: [String], environment: [String: String], timeout: Int
+  ) async throws -> LocalCommandResult {
+    commands.append(arguments)
+    if arguments.first == "print" {
+      if printDelay > .zero { try await Task.sleep(for: printDelay) }
+      return LocalCommandResult(status: printStatus, stdout: Data(printText.utf8), stderr: Data())
+    }
+    if arguments.first == "kickstart" {
+      if kickstartDelay > .zero {
+        try await Task.sleep(for: min(kickstartDelay, .seconds(timeout)))
+        if kickstartDelay >= .seconds(timeout) {
+          throw RuntimeError(.timeout, "Command deadline exceeded: launchctl")
+        }
+      }
+      onKickstart?()
+      let error = kickstartStatus == 0 ? Data() : Data("kickstart failed\n".utf8)
+      return LocalCommandResult(status: kickstartStatus, stdout: Data(), stderr: error)
+    }
+    if arguments.first == "bootstrap" {
+      onBootstrap?()
+      return LocalCommandResult(status: 0, stdout: Data(), stderr: Data())
+    }
+    return LocalCommandResult(
+      status: 1, stdout: Data(), stderr: Data("unexpected launchctl\n".utf8))
+  }
+}
+
 private func readyRuntime(method: String, path: String, directory: URL) -> Data {
   if method == "POST" {
     return mustJSON(500, ["error": ["code": "io", "message": "unexpected mutation"]])
@@ -702,6 +965,7 @@ private final class SocketOnBootstrap: LaunchControl, @unchecked Sendable {
   var server: ScriptedSocket?
   init(directory: URL) { self.directory = directory }
   func printJob(label: String, timeout: Int) async throws -> LaunchJob? { nil }
+  func kickstart(label: String, timeout: Int) async throws {}
   func bootstrap(plist: URL, timeout: Int) async throws {
     bootstrapped.append(plist.path)
     let state = self.directory
@@ -736,6 +1000,7 @@ private struct UnusedProbeDownloader: ApplianceDownloader {
 private final class RecordingLaunch: LaunchControl, @unchecked Sendable {
   var bootstrapped: [String] = []
   func printJob(label: String, timeout: Int) async throws -> LaunchJob? { nil }
+  func kickstart(label: String, timeout: Int) async throws {}
   func bootstrap(plist: URL, timeout: Int) async throws { bootstrapped.append(plist.path) }
   func plist(at url: URL) throws -> [String: Any]? {
     guard FileManager.default.fileExists(atPath: url.path) else { return nil }

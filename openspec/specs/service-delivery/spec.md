@@ -123,8 +123,13 @@ New startup-managed registrations SHALL use the com.upmaru.macus namespace and b
 
 #### Scenario: Loaded matching job
 
-- **WHEN** the selected label is already loaded with a matching executable and state while its control endpoint is not yet open
-- **THEN** start waits for that endpoint within the original deadline and does not bootstrap a second job or replace the plist
+- **WHEN** the selected label is already running or starting and launchctl reports the same executable and state while its control endpoint is not yet open
+- **THEN** start waits for that endpoint within the original deadline and does not bootstrap, kickstart, or replace the plist
+
+#### Scenario: Stopped matching job
+
+- **WHEN** the selected label is registered but not running and launchctl reports the same executable and arguments
+- **THEN** start kickstarts only that job without forcing, bootstrapping again, or replacing its plist, then waits for the endpoint within the original deadline
 
 #### Scenario: Legacy service conflict
 
