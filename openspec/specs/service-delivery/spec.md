@@ -131,6 +131,16 @@ New startup-managed registrations SHALL use the com.upmaru.macus namespace and b
 - **WHEN** the selected label is registered but not running and launchctl reports the same executable and arguments
 - **THEN** start kickstarts only that job without forcing, bootstrapping again, or replacing its plist, then waits for the endpoint within the original deadline
 
+#### Scenario: Significant argument whitespace
+
+- **WHEN** a registered service targets a state-directory path ending in a space
+- **THEN** start preserves the literal argument value while removing only launchctl indentation, so the matching service can be reused or recovered
+
+#### Scenario: Actual executable conflict
+
+- **WHEN** launchctl reports a different executable even though its argument vector and the current plist match the requested service
+- **THEN** start rejects the registration before activation and preserves the existing plist and runtime data
+
 #### Scenario: Legacy service conflict
 
 - **WHEN** an incompatible legacy agent is registered against the selected state

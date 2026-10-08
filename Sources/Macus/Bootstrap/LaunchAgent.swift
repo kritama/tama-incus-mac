@@ -6,6 +6,7 @@ struct LaunchJob: Sendable, Equatable {
   var label: String
   /// True when launchctl reports the job running or starting. A registered stopped job is false.
   var loaded: Bool
+  var executable: String
   var programArguments: [String]
 }
 
@@ -21,7 +22,8 @@ enum LaunchJobParser {
   static func parse(text: String, label: String) throws -> LaunchJob {
     let lines = text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map(
       String.init)
-    let states = lines.compactMap { stateValue($0) }
+    let arguments = try argumentBlocks(lines, label: label)
+    let states = lines.compactMap { stateValue($0, indentation: arguments.indentation) }
     guard states.count == 1, let state = states.first else {
       throw ambiguous(label)
     }
@@ -34,20 +36,28 @@ enum LaunchJobParser {
     default:
       throw ambiguous(label)
     }
-    let arguments = try argumentBlocks(lines, label: label)
-    return LaunchJob(label: label, loaded: loaded, programArguments: arguments)
+    let programPrefix = arguments.indentation + "program = "
+    let programs = lines.filter { $0.hasPrefix(programPrefix) }.map {
+      String($0.dropFirst(programPrefix.count))
+    }
+    guard programs.count == 1, let executable = programs.first,
+      isAbsoluteExecutablePath(executable)
+    else { throw ambiguous(label) }
+    return LaunchJob(
+      label: label, loaded: loaded, executable: executable, programArguments: arguments.values)
   }
 
-  private static func stateValue(_ line: String) -> String? {
-    let trimmed = line.trimmingCharacters(in: .whitespaces)
-    let prefix = "state = "
-    guard trimmed.hasPrefix(prefix) else { return nil }
-    let value = String(trimmed.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+  private static func stateValue(_ line: String, indentation: String) -> String? {
+    let prefix = indentation + "state = "
+    guard line.hasPrefix(prefix) else { return nil }
+    let value = String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
     return value.isEmpty ? nil : value
   }
 
-  private static func argumentBlocks(_ lines: [String], label: String) throws -> [String] {
-    var blocks: [[String]] = []
+  private static func argumentBlocks(_ lines: [String], label: String) throws -> (
+    values: [String], indentation: String
+  ) {
+    var blocks: [(values: [String], indentation: String)] = []
     var index = 0
     while index < lines.count {
       let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
@@ -55,23 +65,26 @@ enum LaunchJobParser {
         index += 1
         continue
       }
+      let blockIndentation = String(lines[index].prefix { $0 == "\t" || $0 == " " })
+      let argumentIndentation = blockIndentation + "\t"
       var arguments: [String] = []
       var closed = false
       index += 1
       while index < lines.count {
-        let inner = lines[index].trimmingCharacters(in: .whitespaces)
-        if inner == "}" {
+        let line = lines[index]
+        if line == blockIndentation + "}" {
           closed = true
           break
         }
-        if inner.isEmpty {
-          throw ambiguous(label)
-        }
-        arguments.append(inner)
+        guard line.hasPrefix(argumentIndentation) else { throw ambiguous(label) }
+        // Remove only launchctl's indentation; whitespace in argv is significant.
+        let argument = String(line.dropFirst(argumentIndentation.count))
+        guard !argument.isEmpty else { throw ambiguous(label) }
+        arguments.append(argument)
         index += 1
       }
       guard closed, !arguments.isEmpty else { throw ambiguous(label) }
-      blocks.append(arguments)
+      blocks.append((arguments, blockIndentation))
       index += 1
     }
     guard blocks.count == 1, let arguments = blocks.first else { throw ambiguous(label) }

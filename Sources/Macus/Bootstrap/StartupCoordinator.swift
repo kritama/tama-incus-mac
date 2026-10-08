@@ -349,7 +349,7 @@ private final class StartContext: @unchecked Sendable {
         "launchctl did not report an unambiguous executable and state for \(label). macus start will not start or replace that service."
       )
     }
-    guard job.programArguments == expected else {
+    guard job.executable == expected.first, job.programArguments == expected else {
       throw RuntimeError(
         .conflict,
         "Service \(label) already points at a different executable or state. macus start will not replace that plist."

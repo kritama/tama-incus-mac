@@ -548,7 +548,7 @@ private final class BudgetRunner: LocalCommandRunner, @unchecked Sendable {
   let before = try Data(contentsOf: plist)
   let launch = FakeLaunchControl()
   launch.jobs[label] = LaunchJob(
-    label: label, loaded: true,
+    label: label, loaded: true, executable: executable,
     programArguments: LaunchAgentPlan.arguments(
       executable: executable, stateDirectory: directory))
   let capture = StartCapture()
@@ -593,7 +593,7 @@ private final class BudgetRunner: LocalCommandRunner, @unchecked Sendable {
   let before = try Data(contentsOf: plist)
   let launch = FakeLaunchControl()
   launch.jobs[label] = LaunchJob(
-    label: label, loaded: true,
+    label: label, loaded: true, executable: "/other/macus",
     programArguments: ["/other/macus", "serve", "--state-dir", directory.path])
   let capture = StartCapture()
   let status = await MacusCLI.run(
@@ -628,7 +628,7 @@ private final class BudgetRunner: LocalCommandRunner, @unchecked Sendable {
   let before = try Data(contentsOf: plist)
   let launch = FakeLaunchControl()
   launch.jobs[label] = LaunchJob(
-    label: label, loaded: true,
+    label: label, loaded: true, executable: "/usr/bin/true",
     programArguments: LaunchAgentPlan.arguments(
       executable: "/usr/bin/true", stateDirectory: directory))
   let capture = StartCapture()
@@ -703,6 +703,39 @@ private final class BudgetRunner: LocalCommandRunner, @unchecked Sendable {
   }
 }
 
+@Test func launchctlArgumentValuesPreserveWhitespace() throws {
+  let arguments = [
+    "/Applications/mac us/bin/macus ", "serve", "--state-dir", "/tmp/my state  ",
+    " leading space", "\tleading tab", "trailing tab\t", "}", " ",
+    "state = not running", "program = /different/macus",
+  ]
+  let job = try LaunchJobParser.parse(
+    text: launchctlPrint(label: "com.upmaru.macus.abc", state: "running", arguments: arguments),
+    label: "com.upmaru.macus.abc")
+  #expect(job.programArguments == arguments)
+  #expect(job.executable == arguments.first)
+}
+
+@Test(arguments: ["running", "not running"])
+func registeredServiceWithTrailingSpaceStateIsMatched(state: String) async throws {
+  let fixture = try ServiceFixture(stateName: "st ")
+  defer { fixture.remove() }
+  #expect(fixture.expected.last?.hasSuffix(" ") == true)
+  let runner = LaunchctlScript()
+  runner.printText = launchctlPrint(
+    label: fixture.label, state: state, arguments: fixture.expected)
+  runner.onKickstart = { fixture.openEndpoint() }
+  if state == "running" { fixture.openEndpoint() }
+  let launch = ProcessLaunchControl(runner: runner, environment: [:], uid: 501)
+  let sentinel = try Data(contentsOf: fixture.paths.dataDisk)
+  #expect(await fixture.start(launch: launch, timeout: 5) == 0)
+  var expectedCommands = [["print", "gui/501/\(fixture.label)"]]
+  if state == "not running" { expectedCommands.append(["kickstart", "gui/501/\(fixture.label)"]) }
+  #expect(runner.commands == expectedCommands)
+  #expect(try Data(contentsOf: fixture.plist) == fixture.plistBytes)
+  #expect(try Data(contentsOf: fixture.paths.dataDisk) == sentinel)
+}
+
 @Test func stoppedMatchingJobIsKickstartedThroughProductionAdapter() async throws {
   let fixture = try ServiceFixture()
   defer { fixture.remove() }
@@ -755,6 +788,50 @@ private final class BudgetRunner: LocalCommandRunner, @unchecked Sendable {
   #expect(capture.error.contains("will not replace"))
   #expect(try Data(contentsOf: fixture.plist) == fixture.plistBytes)
   #expect(try Data(contentsOf: fixture.paths.dataDisk) == sentinel)
+}
+
+@Test(arguments: ["running", "not running"])
+func launchctlProgramConflictRejectsMatchingArguments(state: String) async throws {
+  let fixture = try ServiceFixture()
+  defer { fixture.remove() }
+  let runner = LaunchctlScript()
+  runner.printText = launchctlPrint(
+    label: fixture.label, state: state, arguments: fixture.expected
+  ).replacingOccurrences(of: "\tprogram = /usr/bin/true", with: "\tprogram = /different/macus")
+  runner.onKickstart = { fixture.openEndpoint() }
+  if state == "running" { fixture.openEndpoint() }
+  let capture = StartCapture()
+  let sentinel = try Data(contentsOf: fixture.paths.dataDisk)
+  let launch = ProcessLaunchControl(runner: runner, environment: [:], uid: 501)
+  #expect(await fixture.start(launch: launch, timeout: 5, capture: capture) == 1)
+  #expect(capture.error.contains("will not replace"))
+  #expect(runner.commands == [["print", "gui/501/\(fixture.label)"]])
+  #expect(try Data(contentsOf: fixture.plist) == fixture.plistBytes)
+  #expect(try Data(contentsOf: fixture.paths.dataDisk) == sentinel)
+}
+
+@Test(arguments: ["missing", "duplicate", "empty", "relative"])
+func ambiguousLaunchctlProgramDoesNotActivate(kind: String) async throws {
+  let fixture = try ServiceFixture()
+  defer { fixture.remove() }
+  let runner = LaunchctlScript()
+  let valid = launchctlPrint(
+    label: fixture.label, state: "not running", arguments: fixture.expected)
+  let programLine = "\tprogram = /usr/bin/true"
+  let replacement: String
+  switch kind {
+  case "missing": replacement = ""
+  case "duplicate": replacement = programLine + "\n" + programLine
+  case "empty": replacement = "\tprogram = "
+  default: replacement = "\tprogram = relative/macus"
+  }
+  runner.printText = valid.replacingOccurrences(of: programLine, with: replacement)
+  let capture = StartCapture()
+  let launch = ProcessLaunchControl(runner: runner, environment: [:], uid: 501)
+  #expect(await fixture.start(launch: launch, timeout: 5, capture: capture) == 1)
+  #expect(capture.error.contains("unambiguous"))
+  #expect(runner.commands == [["print", "gui/501/\(fixture.label)"]])
+  #expect(try Data(contentsOf: fixture.plist) == fixture.plistBytes)
 }
 
 @Test func ambiguousLaunchctlIdentityIsRejectedBeforeActivation() async throws {
@@ -832,6 +909,7 @@ private func launchctlPrint(label: String, state: String, arguments: [String]) -
   return """
     gui/501/\(label) = {
     \tstate = \(state)
+    \tprogram = \(arguments.first ?? "")
     \targuments = {
     \(body)
     \t}
@@ -849,12 +927,12 @@ private final class ServiceFixture: @unchecked Sendable {
   let plistBytes: Data
   var server: ScriptedSocket?
 
-  init() throws {
+  init(stateName: String = "st") throws {
     root = URL(fileURLWithPath: "/tmp/macus-ctl-\(UUID().uuidString.prefix(8))")
     try FileManager.default.createDirectory(
       at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
     tools = try StartTools()
-    let state = root.appendingPathComponent("st")
+    let state = root.appendingPathComponent(stateName)
     paths = RuntimePaths(directory: state)
     try paths.prepare()
     try FileManager.default.createDirectory(
