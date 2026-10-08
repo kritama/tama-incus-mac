@@ -764,7 +764,12 @@ func registeredServiceWithTrailingSpaceStateIsMatched(state: String) async throw
     label: fixture.label, state: "spawn scheduled", arguments: fixture.expected)
   let launch = ProcessLaunchControl(runner: runner, environment: [:], uid: 501)
   let task = Task { await fixture.start(launch: launch, timeout: 5) }
-  try await Task.sleep(for: .milliseconds(200))
+  // Cold subprocess startup on CI can exceed 200 ms. Observe the print request
+  // before asserting that no activation occurred while readiness is withheld.
+  let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+  while runner.commands.isEmpty && ContinuousClock.now < deadline {
+    try await Task.sleep(for: .milliseconds(10))
+  }
   #expect(runner.commands == [["print", "gui/501/\(fixture.label)"]])
   fixture.openEndpoint()
   #expect(await task.value == 0)
@@ -978,7 +983,9 @@ private final class ServiceFixture: @unchecked Sendable {
 }
 
 private final class LaunchctlScript: LocalCommandRunner, @unchecked Sendable {
-  var commands: [[String]] = []
+  private let commandLock = NSLock()
+  private var recordedCommands: [[String]] = []
+  var commands: [[String]] { commandLock.withLock { recordedCommands } }
   var printText = ""
   var printStatus: Int32 = 0
   var kickstartStatus: Int32 = 0
@@ -989,7 +996,7 @@ private final class LaunchctlScript: LocalCommandRunner, @unchecked Sendable {
   func run(
     executable: String, arguments: [String], environment: [String: String], timeout: Int
   ) async throws -> LocalCommandResult {
-    commands.append(arguments)
+    commandLock.withLock { recordedCommands.append(arguments) }
     if arguments.first == "print" {
       if printDelay > .zero { try await Task.sleep(for: printDelay) }
       return LocalCommandResult(status: printStatus, stdout: Data(printText.utf8), stderr: Data())

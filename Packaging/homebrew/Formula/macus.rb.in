@@ -1,0 +1,44 @@
+class Macus < Formula
+  desc "Native macOS Incus host using Apple Virtualization.framework"
+  homepage "https://github.com/upmaru/macus"
+  url @SOURCE_URL@
+  version @VERSION@
+  sha256 @SOURCE_SHA256@
+  license "MIT"
+
+@BOTTLE@
+  depends_on xcode: ["27.0", :build]
+  depends_on arch: :arm64
+  depends_on macos: :sequoia
+
+  def install
+    # Homebrew already sandboxes the build; SwiftPM cannot nest sandbox-exec inside it.
+    system "swift", "build", "--disable-sandbox", "-c", "release", "-Xswiftc", "-warnings-as-errors"
+    bin.install ".build/release/macus"
+    system "/usr/bin/codesign", "--force", "--sign", "-",
+           "--entitlements", "Packaging/virtualization.entitlements", bin/"macus"
+    system "/usr/bin/codesign", "--verify", "--strict", bin/"macus"
+    entitlement = Utils.safe_popen_read("/usr/bin/codesign", "-d", "--entitlements", ":-", bin/"macus")
+    unless entitlement.include?("com.apple.security.virtualization")
+      odie "macus is missing its virtualization entitlement"
+    end
+  end
+
+  def caveats
+    <<~EOS
+      Run macus start explicitly to prepare and start the per-user runtime.
+      Development bottles are ad-hoc signed, not Developer ID signed or notarized.
+      Before upgrade or uninstall, stop the runtime and unload its owned launchd job.
+      Runtime disks and Incus configuration are preserved outside the Homebrew keg.
+      If no compatible bottle is available, source builds require Xcode 27 / Swift 6.4.
+    EOS
+  end
+
+  test do
+    assert_match "serve", shell_output("#{bin}/macus --help")
+    assert_match "apple-vz", shell_output("#{bin}/macus capabilities")
+    system "/usr/bin/codesign", "--verify", "--strict", bin/"macus"
+    entitlement = Utils.safe_popen_read("/usr/bin/codesign", "-d", "--entitlements", ":-", bin/"macus")
+    assert_match "com.apple.security.virtualization", entitlement
+  end
+end

@@ -39,7 +39,8 @@ func runStart(
         runner: runner, environment: environment, uid: overrides.uid ?? getuid()),
     capabilities: overrides.capabilities ?? { await MainActor.run { CapabilityDetector.detect() } },
     hasEntitlement: overrides.hasEntitlement ?? { currentProcessHasVirtualizationEntitlement() },
-    executablePath: overrides.executablePath ?? { currentExecutablePath() },
+    executablePath: overrides.executablePath
+      ?? { ServiceExecutable.stablePath(for: currentExecutablePath()) },
     now: overrides.now ?? { ContinuousClock.now },
     homeDirectory: home,
     launchAgentsDirectory: overrides.launchAgentsDirectory

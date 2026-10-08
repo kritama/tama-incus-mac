@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "source_commit": "7e071e383d630ffe0a72c019dc8a28af02446dde",
+  "version": "0.0.0-dev.20261008123735.7e071e383d63",
+  "hardware_ran": true,
+  "guest_verified": false,
+  "success": false,
+  "observation": "Installed bottle booted the fresh Alpine VM and completed one expected kernel restart; live Incus readiness did not arrive. Second boot showed tama-bootstrap stopped.",
+  "recovery": "The isolated runtime was force-stopped and its owned job unloaded. Disks, serial log and private hardware report were retained. No reset or disk replacement ran.",
+  "phase_checks": {},
+  "upgrade_verified": false,
+  "uninstall_verified": false
+}
