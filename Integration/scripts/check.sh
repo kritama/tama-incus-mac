@@ -3,6 +3,8 @@ set -eu
 swift build -Xswiftc -warnings-as-errors
 # Keep unrelated fixture startup out of deadline measurements; tests exercise concurrency internally.
 swift test --no-parallel -Xswiftc -warnings-as-errors
+# Blocking fixture I/O must not occupy the cooperative executor, even with one worker.
+LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 swift test --skip-build --no-parallel --filter 'transparentRelayPreservesBinaryAndHalfClose|relayHandlesBidirectionalBackpressure'
 swift build -c release -Xswiftc -warnings-as-errors
 swift format lint --strict --recursive Package.swift Sources Tests
 sh -n Integration/guest/bootstrap.sh
