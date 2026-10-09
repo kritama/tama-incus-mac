@@ -66,14 +66,18 @@ Maintain a per-operation ledger for the nine `StartupStage` values rather than d
 Use Noora's themed rendering for a compact live progress display, with completed/skipped stage messages preserved in scrollback. The stage ledger is Macus-owned: render the stage-count bar through Noora's text/renderer APIs rather than presenting Noora's built-in numeric percentage as overall startup completion. Representative forms (illustrative text; the actual Noora theme may use different markers):
 
 ```text
-Starting Macus
-  [done] Checking host
-  [done] Preparing appliance
-
-  [#####----] 5/9 stages | Booting Linux (1m 12s)
+✔︎ Host checked [0.1s]
+✔︎ Appliance prepared [0.2s]
+⠋ Provisioning Linux (1m 12s) | [#####----] 5/9 stages
 ```
 
 During acquisition, use Noora's `progressBarStep` for measured byte progress (`128 MiB / 256 MiB, 50%`) when a positive trusted total is available and the terminal has sufficient width. Unknown-length downloads and boot/client waits use its activity/progress-step presentation without a numerical percentage. Validate/clamp display arithmetic for invalid or over-total counters without changing underlying measurements. Waiting stages use readable labels and human elapsed time; guest details map known phase names to readable wording and escape unknown details. The expected kernel reboot is explicitly named as an ongoing wait. Keep the overall stage-count view and current-stage activity under one serialized renderer; do not run independent indicators that erase each other's rows.
+
+Use the actual Noora `progressStep` API for each observed stage, including its native completion/failure markers and elapsed-time layout. A custom string sent through `passthrough` is not a substitute for a step component. Keep stage accounting as supplementary context on the active step; completed steps remain native Noora scrollback. Skipped stages must explicitly describe reuse/skipping rather than displaying a successful download or disk creation.
+
+Noora 0.57.5's step spinner and mutable message share unsynchronized state. Run its step component with `showSpinner: false`, process message updates on one component task per stage, and let the adapter's synchronized refresh animate the cached native frame. All native renderer/pipeline callbacks pass through the same closed-state/write boundary. Finish and await component tasks before the final report, and reject late events and stale active frames for already resolved stages.
+
+Terminal line handling must explicitly return to column zero after every progress scrollback line, including when `ONLCR` is disabled. Test the screen after interpreting carriage returns, linefeeds, erasure and color controls; raw captures that merely contain completion strings do not prove the displayed prefixes and row boundaries are intact. Human report pipelines must also preserve line starts on such terminals, without changing redirected or JSON bytes.
 
 Sample elapsed/animation refreshes at a bounded cadence (no more than ten redraws per second), with immediate important transitions. Coordinate Noora's indicator callbacks through an injected renderer to enforce that cadence and the sink's closed state. Where the component cannot express the required stage view or width fallback, compose it using Noora `TerminalText` and the same renderer rather than introducing another presentation dependency. A cancellable adapter-owned refresh task can provide elapsed updates during sparse events; it reads the latest observation, never synthesizing readiness or guest phases. Refreshing does not extend startup's deadline. Stop and await all refresh activity before final output.
 

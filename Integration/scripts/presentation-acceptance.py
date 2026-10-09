@@ -7,6 +7,8 @@ import json
 import os
 from pathlib import Path
 import pty
+import re
+import unicodedata
 import select
 import signal
 import socket
@@ -16,6 +18,93 @@ import tempfile
 import termios
 import threading
 import time
+
+
+class TerminalScreen:
+    """Interpret the controls used by Macus so assertions check displayed rows."""
+    def __init__(self, columns=120):
+        self.columns = columns
+        self.lines = [[]]
+        self.row = self.column = 0
+        self.cursor_visible = True
+
+    def current(self):
+        while len(self.lines) <= self.row:
+            self.lines.append([])
+        return self.lines[self.row]
+
+    def feed(self, text):
+        index = 0
+        while index < len(text):
+            if text.startswith('\x1b[', index):
+                control = re.match(r'\x1b\[([0-9;?]*)([@-~])', text[index:])
+                assert control, repr(text[index:index + 30])
+                arguments, command = control.groups()
+                count = int(arguments or '1') if arguments.isdigit() else 1
+                if command == 'K':
+                    line = self.current()
+                    if arguments == '2':
+                        line.clear()
+                    else:
+                        del line[self.column:]
+                elif command == 'G':
+                    self.column = max(0, count - 1)
+                elif command == 'A':
+                    self.row = max(0, self.row - count)
+                elif command == 'B':
+                    self.row += count
+                elif arguments == '?25' and command in ('h', 'l'):
+                    self.cursor_visible = command == 'h'
+                else:
+                    assert command == 'm', (arguments, command)
+                index += len(control.group(0))
+                continue
+            character = text[index]
+            index += 1
+            if character == '\r':
+                self.column = 0
+            elif character == '\n':
+                self.row += 1
+            elif unicodedata.combining(character) or unicodedata.category(character) in ('Mn', 'Me'):
+                line = self.current()
+                if self.column and self.column <= len(line):
+                    line[self.column - 1] += character
+            else:
+                cells = 2 if unicodedata.east_asian_width(character) in ('W', 'F') else 1
+                if self.column + cells > self.columns:
+                    self.row += 1
+                    self.column = 0
+                line = self.current()
+                while len(line) < self.column + cells:
+                    line.append(' ')
+                line[self.column] = character
+                for offset in range(1, cells):
+                    line[self.column + offset] = ''
+                self.column += cells
+        return self
+
+    @property
+    def rows(self):
+        return [''.join(line).rstrip() for line in self.lines]
+
+
+def check_finished_screen(text, columns=120):
+    screen = TerminalScreen(columns).feed(text)
+    assert screen.cursor_visible
+    assert not any(row.startswith(('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏')) for row in screen.rows), screen.rows
+    return screen
+
+
+def check_native_startup_screen(text, columns=120):
+    screen = check_finished_screen(text, columns)
+    for label in ['Host checked', 'Service activated', 'Incus is ready', 'Client connected']:
+        matching = [row for row in screen.rows if row.startswith('✔︎ ' + label)]
+        assert len(matching) == 1, (label, screen.rows)
+        assert re.search(r' \[[0-9]+(?:\.[0-9]+)?s\]$', matching[0]), matching[0]
+    assert sum(row == 'Macus is ready' for row in screen.rows) == 1, screen.rows
+    assert 'Startup: 9/9 stages resolved' in screen.rows, screen.rows
+    assert not any('[complete]' in row or '[skipped]' in row for row in screen.rows), screen.rows
+    return screen.rows
 
 
 class RuntimeFixture:
@@ -109,11 +198,15 @@ class RuntimeFixture:
         self.thread.join(2)
 
 
-def invoke(binary, arguments, env, interactive=False, interrupt=None):
+def invoke(binary, arguments, env, interactive=False, interrupt=None, translate_newlines=True):
     if not interactive:
         result = subprocess.run([str(binary), *arguments], env=env, capture_output=True, text=True, timeout=15)
         return result.returncode, result.stdout, result.stderr
     master, slave = pty.openpty()
+    if not translate_newlines:
+        attributes = termios.tcgetattr(slave)
+        attributes[1] &= ~termios.ONLCR
+        termios.tcsetattr(slave, termios.TCSANOW, attributes)
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 120, 0, 0))
     process = subprocess.Popen([str(binary), *arguments], env=env, stdout=slave, stderr=slave)
     os.close(slave)
@@ -156,7 +249,8 @@ def verify_startup(binary, client, env, fixture, report, host_supported):
             assert 'Macus is ready' not in out + err, (out, err)
             if interactive:
                 failure = out.index('Macus failed')
-                assert out.rindex('\x1b[?25h') < failure and '\x1b' not in out[failure:]
+                assert '\x1b' not in out[failure:]
+                check_finished_screen(out)
             else:
                 assert not out and '\x1b' not in err, (out, err)
             report['transcripts'][('pty ' if interactive else 'redirected ') + 'start unsupported host'] = out + err
@@ -171,15 +265,23 @@ def verify_startup(binary, client, env, fixture, report, host_supported):
         fixture.state, fixture.mode = 'ready', 'success'
         code, out, err = invoke(binary, ['start', '--incus', str(client)], env, interactive)
         assert code == 0, (out, err)
-        summary = out.index('Macus is ready\r\n' if interactive else 'Macus is ready\n')
         if interactive:
-            restored = out.rindex('\x1b[?25h')
-            # The stage confirmation precedes the separate stdout heading.
-            heading = out.index('Macus is ready\r\n', summary + 1)
-            assert restored < heading and '\x1b' not in out[heading:]
+            heading = out.index('Macus is ready')
+            assert out.rindex('\x1b[?25h') < heading and '\x1b' not in out[heading:]
+            report.setdefault('screens', {})['pty start'] = check_native_startup_screen(out)
         else:
             assert '\x1b' not in out + err and out.startswith('Macus is ready\n')
         report['transcripts'][('pty ' if interactive else 'redirected ') + 'start'] = out + err
+    for color in [False, True]:
+        fixture.state, fixture.mode = 'ready', 'success'
+        profile_env = dict(env)
+        if color:
+            profile_env.pop('NO_COLOR', None)
+        code, out, err = invoke(binary, ['start', '--incus', str(client)], profile_env, True, translate_newlines=False)
+        assert code == 0, (out, err)
+        key = 'pty start ONLCR disabled' + (' color' if color else '')
+        report['transcripts'][key] = out
+        report.setdefault('screens', {})[key] = check_native_startup_screen(out)
     code, out, err = invoke(binary, ['start', '--incus', str(client), '--json', '--progress', 'none'], env)
     assert code == 0 and json.loads(out)['ready'] and json.loads(out)['connected'] and not err
     report['transcripts']['redirected start --json --progress none'] = out
@@ -188,7 +290,7 @@ def verify_startup(binary, client, env, fixture, report, host_supported):
         fixture.dispatched.clear()
         command = ['start', '--incus', str(client), '--timeout', '5' if mode == 'timeout' else '10']
         code, out, err = invoke(binary, command, env, True,
-                                fixture.dispatched if mode == 'cancellation' else None)
+                                fixture.dispatched if mode == 'cancellation' else None, translate_newlines=False)
         assert code == expected, (mode, code, out, err)
         assert fixture.dispatched.is_set(), (mode, 'runtime start was never dispatched', out, err)
         if mode == 'timeout':
@@ -197,6 +299,14 @@ def verify_startup(binary, client, env, fixture, report, host_supported):
         failure = out.index('Macus failed')
         assert out.rindex('\x1b[?25h') < failure and '\x1b' not in out[failure:]
         assert 'runtime status' in out and 'runtime stop' in out
+        screen = check_finished_screen(out)
+        failed_rows = [row for row in screen.rows if row.startswith('⨯ ') and re.search(r' failed \[[0-9]+(?:\.[0-9]+)?s\]$', row)]
+        assert failed_rows, screen.rows
+        if mode != 'cancellation':
+            assert any(row.startswith('⨯ Waiting for Incus failed') for row in failed_rows), screen.rows
+        assert any(row.startswith('  Macus failed') for row in screen.rows), screen.rows
+        assert sum('Macus failed' in row for row in screen.rows) == 1, screen.rows
+        report.setdefault('screens', {})['pty start ' + mode] = screen.rows
         report['transcripts']['pty start ' + mode] = out
 
 
@@ -269,7 +379,16 @@ def main():
                 if process.poll() is None:
                     process.kill()
                     process.wait()
-        report = json.loads(json.dumps(report).replace(temporary, '/tmp/macus-presentation-fixture'))
+        serialized = json.dumps(report)
+        # Swift canonicalizes /private/tmp to /tmp and JSON may escape path separators.
+        for prefix in [temporary, str(Path('/tmp') / Path(temporary).name)]:
+            for escaped in [False, True]:
+                source = prefix.replace('/', r'\/') if escaped else prefix
+                target = '/tmp/macus-presentation-fixture'
+                if escaped:
+                    target = target.replace('/', r'\/')
+                serialized = serialized.replace(json.dumps(source)[1:-1], json.dumps(target)[1:-1])
+        report = json.loads(serialized)
     if args.output:
         args.output.write_text(json.dumps(report, indent=2) + '\n')
     print(f"Presentation acceptance passed: {len(report['transcripts'])} signed CLI transcripts; {report['startup_fixture_mode']}; no VM booted")

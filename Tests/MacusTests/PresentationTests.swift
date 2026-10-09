@@ -319,3 +319,15 @@ func hostNestingIsSeparateFromEffectiveWorkloadVM(kvm: Bool, nestingEnabled: Boo
   #expect(capabilities.capabilities.nestedVirtualization)
   #expect(capabilities.capabilities.vm == (kvm && nestingEnabled))
 }
+
+@Test func humanPipelinesReturnToMarginOnTTYWithoutChangingRedirectedOrJSONText() {
+  #expect(terminalLineBoundaries("first\nsecond\n", isTTY: true) == "first\n\rsecond\n\r")
+  #expect(terminalLineBoundaries("first\nsecond\n", isTTY: false) == "first\nsecond\n")
+  let capture = StartCapture()
+  var streams = capture.streams
+  streams.stdoutIsTTY = true
+  HumanPresentation(streams: streams, environment: ["TERM": "xterm", "NO_COLOR": ""]).runtime(
+    ["state": "stopped", "uptime_seconds": 72], directory: URL(fileURLWithPath: "/tmp/state"))
+  #expect(Data(capture.output.utf8).range(of: Data("\n\rRuntime\n\r".utf8)) != nil)
+  #expect(!capture.output.contains("\u{1B}"))
+}

@@ -88,3 +88,22 @@ Interactive progress SHALL fit the current terminal width using shorter labels o
 
 - **WHEN** a stage emits many equivalent waiting or byte updates with plain progress selected
 - **THEN** the log preserves important transitions and periodic progress without printing every animation refresh
+
+### Requirement: Native Noora step presentation
+
+Startup stages SHALL use Noora progress-step components for activity, completion and failure. The adapter SHALL preserve native step markers and elapsed-time presentation while keeping skipped-stage meaning, stage accounting, stream selection and terminal cleanup explicit.
+
+#### Scenario: Native step completion
+
+- **WHEN** an observed startup stage completes or fails
+- **THEN** it leaves one intact native Noora completion or failure row rather than a raw bracketed state string
+
+#### Scenario: Terminal without automatic carriage return
+
+- **WHEN** stdout and stderr share a terminal whose linefeed does not return to column zero
+- **THEN** completed steps and the final report start at the left margin, without joined rows or clipped prefixes
+
+#### Scenario: Late native callback
+
+- **WHEN** a component or refresh callback arrives after its stage resolves or after finalization
+- **THEN** it cannot redraw an obsolete active row or overwrite completed scrollback or the final report

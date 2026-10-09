@@ -126,10 +126,17 @@ compact text or plain output handles narrow, unknown or resized widths.
 Illustrative progress (fixtures, not a VM run):
 
 ```text
-[skipped] Downloading appliance | existing runtime
-[#####----] 5/9 stages | Waiting for expected kernel reboot (1m 12s)
-Downloading appliance 128.0 MiB / 256.0 MiB, 50% (3s)
+✔︎ Host checked [0.1s]
+✔︎ Skipped download (using existing appliance) [0.0s]
+⠋ Waiting for expected kernel reboot (1m 12s) | [#####----] 5/9 stages
+⠋ Downloading appliance 128.0 MiB / 256.0 MiB, 50% (3s)
 ```
+
+Stages use Noora’s native progress-step component: completed stages retain a
+checkmark and elapsed time, failures retain a cross, and skipped stages explicitly
+name the reused resource. Macus owns the spinner refresh and cursor cleanup.
+Completed lines and human reports return to the left margin even when the terminal
+disables automatic newline translation.
 
 Plain mode preserves state/detail transitions immediately and throttles repeated
 byte/elapsed updates to at most one per five seconds. Automatic refresh is
