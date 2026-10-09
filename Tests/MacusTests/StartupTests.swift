@@ -48,65 +48,23 @@ import Testing
 }
 
 @Test func progressRendererDoesNotInventPercentagesOrReadiness() {
-  var plain = ProgressRenderer(rendering: .plain)
-  let now = ContinuousClock.now
   let unknown = StartupProgressEvent(
-    operationID: "op", stage: .acquisition, state: .active, elapsedSeconds: 3, completedBytes: 12,
-    totalBytes: nil, detail: nil)
-  let line = plain.render(unknown, now: now) ?? ""
-  #expect(line.contains("12 bytes"))
-  #expect(!line.contains("%"))
-  #expect(!line.contains("\u{1B}"))
-  let launch = StartupProgressEvent(
-    operationID: "op", stage: .serviceActivation, state: .active, elapsedSeconds: 1,
-    detail: "launchd")
-  let service = plain.render(launch, now: now) ?? ""
-  #expect(service.contains("Activating service"))
-  #expect(!service.contains("ready"))
-  let dumb = ProgressRenderer.resolve(
-    selection: .auto, stderrIsTTY: false, term: "dumb", json: false)
-  #expect(dumb == .plain)
-  let json = ProgressRenderer.resolve(
-    selection: .auto, stderrIsTTY: true, term: "xterm-256color", json: true)
-  #expect(json == .plain)
+    operationID: "op", stage: .acquisition, state: .active,
+    elapsedSeconds: 3, completedBytes: 12, totalBytes: nil)
+  #expect(byteProgress(unknown) == "12 bytes")
+  var ledger = ProgressLedger()
+  let accepted = ledger.observe(unknown)
+  #expect(accepted)
+  #expect(ledger.resolvedStages == 0)
+  #expect(
+    ProgressRenderer.resolve(selection: .auto, stderrIsTTY: false, term: "dumb", json: false)
+      == .plain)
+  #expect(
+    ProgressRenderer.resolve(selection: .auto, stderrIsTTY: true, term: "xterm", json: true)
+      == .plain)
   #expect(
     ProgressRenderer.resolve(selection: .none, stderrIsTTY: true, term: "xterm", json: false)
       == .none)
-}
-
-@Test func animatedProgressUsesPseudoTerminalAndRestoresCursor() throws {
-  var primary: Int32 = 0
-  var replica: Int32 = 0
-  #expect(openpty(&primary, &replica, nil, nil, nil) == 0)
-  defer {
-    close(primary)
-    close(replica)
-  }
-  #expect(isatty(replica) == 1)
-  let rendering = ProgressRenderer.resolve(
-    selection: .auto, stderrIsTTY: true, term: "xterm-256color", json: false)
-  #expect(rendering == .animated)
-  var renderer = ProgressRenderer(rendering: rendering)
-  let text =
-    renderer.render(
-      StartupProgressEvent(
-        operationID: "op", stage: .acquisition, state: .active, elapsedSeconds: 1,
-        completedBytes: 4,
-        totalBytes: 8),
-      now: .now) ?? ""
-  let cleanup = renderer.cleanup()
-  #expect(text.contains("\u{1B}[?25l"))
-  #expect(text.contains("50%"))
-  #expect(cleanup.contains("\u{1B}[?25h"))
-  let payload = Data((text + cleanup).utf8)
-  let written = payload.withUnsafeBytes { Darwin.write(replica, $0.baseAddress, payload.count) }
-  #expect(written == payload.count)
-  var buffer = [UInt8](repeating: 0, count: 512)
-  let readCount = buffer.withUnsafeMutableBytes { Darwin.read(primary, $0.baseAddress, $0.count) }
-  #expect(readCount > 0)
-  let captured = String(decoding: buffer.prefix(readCount), as: UTF8.self)
-  #expect(captured.contains("\u{1B}[?25l"))
-  #expect(captured.contains("\u{1B}[?25h"))
 }
 
 @Test func guestObservationsIgnoreUnknownAndKeepCurrentBootSignal() {

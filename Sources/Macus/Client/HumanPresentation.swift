@@ -4,7 +4,8 @@ import Noora
 
 struct StreamPipeline: StandardPipelining {
   let write: @Sendable (String) -> Void
-  func write(content: String) { write(content) }
+  var returnsToMargin = false
+  func write(content: String) { write(terminalLineBoundaries(content, isTTY: returnsToMargin)) }
 }
 
 /// No input, raw mode, or signal ownership: Macus owns cancellation and exit codes.
@@ -72,7 +73,10 @@ struct HumanPresentation {
     noora = Noora(
       terminal: terminal,
       standardPipelines: StandardPipelines(
-        output: StreamPipeline(write: write), error: StreamPipeline(write: write)))
+        output: StreamPipeline(
+          write: write, returnsToMargin: error ? streams.stderrIsTTY : streams.stdoutIsTTY),
+        error: StreamPipeline(
+          write: write, returnsToMargin: error ? streams.stderrIsTTY : streams.stdoutIsTTY)))
   }
 
   func text(_ value: String) { noora.passthrough(TerminalText(stringLiteral: value)) }
@@ -290,4 +294,10 @@ func runtimeCommands(state: String, directory: URL) -> [String] {
   default: command = ["runtime", "status"]
   }
   return [shellCommand(["macus", "--state-dir", directory.path] + command)]
+}
+
+/// LF is a vertical move when ONLCR is disabled. Explicitly start the next human row at column zero.
+func terminalLineBoundaries(_ text: String, isTTY: Bool) -> String {
+  guard isTTY else { return text }
+  return text.replacingOccurrences(of: "\n", with: "\n\r")
 }

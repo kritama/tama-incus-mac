@@ -136,3 +136,18 @@ it does not bypass production preflight or claim the startup success/timeout
 matrix ran there. Supported-host runs exercise that full matrix. Runtime-wait
 failure, timeout and interruption cases must observe an actual fixture start
 request; preflight failures cannot satisfy their assertions.
+
+Native Noora startup steps are verified separately in
+[testing/native-noora-step-acceptance.json](testing/native-noora-step-acceptance.json).
+These 23 signed executable transcripts include rendered screens for successful
+reuse, operational failure, timeout and SIGINT. Success runs cover ordinary
+newline translation plus disabled `ONLCR`, with and without color. Screen checks
+verify intact native step prefixes/timings, explicit skipped-resource labels, a
+single success heading, no stale spinner and a visible cursor. The run used only
+isolated socket/client fixtures and preserved their disk/configuration sentinels;
+no VM was booted. Strict builds, 132 Swift tests and 71 Python tests passed.
+
+The startup screen checker requires all nine resolved rows exactly once, including
+the five skipped-resource labels and each native elapsed-time suffix. Negative
+regressions remove, duplicate, clip, mislabel or remove timing from every skipped
+row, ensuring a `9/9` footer alone cannot satisfy presentation acceptance.

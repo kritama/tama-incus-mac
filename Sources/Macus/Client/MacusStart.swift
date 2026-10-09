@@ -26,15 +26,17 @@ func runStart(
   runner: any LocalCommandRunner, streams: MacusStreams, overrides: StartupOverrides
 ) async throws {
   let rendering = ProgressRenderer.resolve(
-    selection: progress, stderrIsTTY: overrides.stderrIsTTY ?? (isatty(STDERR_FILENO) == 1),
+    selection: progress, stderrIsTTY: overrides.stderrIsTTY ?? streams.stderrIsTTY,
     term: overrides.term ?? environment["TERM"], json: json)
   var progressEnvironment = environment
+  if let term = overrides.term { progressEnvironment["TERM"] = term }
   if json { progressEnvironment["NO_COLOR"] = "1" }
   let terminal = MacusTerminal(
     descriptor: STDERR_FILENO, isTTY: rendering == .animated,
     environment: progressEnvironment, width: overrides.terminalWidth, write: streams.writeError)
   let sink = TerminalProgressSink(
     rendering: rendering, environment: progressEnvironment,
+    stderrIsTTY: overrides.stderrIsTTY ?? streams.stderrIsTTY,
     width: { terminal.size()?.columns }, write: streams.writeError)
   sink.startRefreshing()
   defer { sink.cleanup() }
