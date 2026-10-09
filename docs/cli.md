@@ -52,9 +52,10 @@ Local installation from source requires Swift and is documented in [development]
 
 Human reports use readable labels and explicit Supported, Unsupported and
 Unavailable observations. `doctor` groups Runtime, Host support, Workload support
-and Guest health. Host nesting support is separate from usable workload VM/KVM
-support. Missing live observations are unavailable; only JSON includes the full
-API-extension list. Paths, failure details and next commands are printed in full.
+and Guest health. Host nesting and host file-sharing support appear only in Host
+support; Workload support reports effective container/OCI/VM availability,
+separately from usable guest KVM and configured nesting. Missing live observations
+are unavailable; only JSON includes the full API-extension list. Paths, failure details and next commands are printed in full.
 
 The following are presentation examples based on fixtures, not hardware evidence.
 Spacing and optional Noora table borders depend on terminal width.

@@ -67,12 +67,15 @@ class RuntimeFixture:
             if method == 'POST':
                 assert path == '/v1/runtime/start', (method, path)
                 self.dispatched.set()
-                if self.mode in ('timeout', 'cancellation'):
-                    self.stop.wait(3)
+                mode = self.mode
+                if mode in ('timeout', 'cancellation'):
+                    self.stop.wait(10 if mode == 'timeout' else 3)
                 else:
                     time.sleep(0.4)
-                if self.mode == 'error':
+                if mode == 'error':
                     status, obj = 500, {'error': {'code': 'io', 'message': 'Fixture boot failed; disks preserved'}}
+                elif mode == 'timeout':
+                    status, obj = 504, {'error': {'code': 'timeout', 'message': 'Fixture runtime wait exceeded deadline'}}
                 else:
                     self.state = 'ready'
                     obj = self.status()
@@ -143,6 +146,60 @@ def invoke(binary, arguments, env, interactive=False, interrupt=None):
         os.close(master)
 
 
+def verify_startup(binary, client, env, fixture, report, host_supported):
+    if not host_supported:
+        report['startup_fixture_mode'] = 'unsupported-host rejection'
+        for interactive in [False, True]:
+            code, out, err = invoke(binary, ['start', '--incus', str(client)], env, interactive)
+            assert code == 1, (code, out, err)
+            assert 'Apple virtualization is unavailable' in out + err, (out, err)
+            assert 'Macus is ready' not in out + err, (out, err)
+            if interactive:
+                failure = out.index('Macus failed')
+                assert out.rindex('\x1b[?25h') < failure and '\x1b' not in out[failure:]
+            else:
+                assert not out and '\x1b' not in err, (out, err)
+            report['transcripts'][('pty ' if interactive else 'redirected ') + 'start unsupported host'] = out + err
+        code, out, err = invoke(binary, ['start', '--incus', str(client), '--json', '--progress', 'none'], env)
+        assert code == 1 and not out and json.loads(err)['error']['code'] == 'unavailable', (code, out, err)
+        assert all(method == 'GET' for method, _ in fixture.calls), fixture.calls
+        assert not (fixture.root / 'bootstrap.lock').exists()
+        report['transcripts']['redirected start unsupported host --json'] = err
+        return
+    report['startup_fixture_mode'] = 'supported-host runtime fixtures'
+    for interactive in [False, True]:
+        fixture.state, fixture.mode = 'ready', 'success'
+        code, out, err = invoke(binary, ['start', '--incus', str(client)], env, interactive)
+        assert code == 0, (out, err)
+        summary = out.index('Macus is ready\r\n' if interactive else 'Macus is ready\n')
+        if interactive:
+            restored = out.rindex('\x1b[?25h')
+            # The stage confirmation precedes the separate stdout heading.
+            heading = out.index('Macus is ready\r\n', summary + 1)
+            assert restored < heading and '\x1b' not in out[heading:]
+        else:
+            assert '\x1b' not in out + err and out.startswith('Macus is ready\n')
+        report['transcripts'][('pty ' if interactive else 'redirected ') + 'start'] = out + err
+    code, out, err = invoke(binary, ['start', '--incus', str(client), '--json', '--progress', 'none'], env)
+    assert code == 0 and json.loads(out)['ready'] and json.loads(out)['connected'] and not err
+    report['transcripts']['redirected start --json --progress none'] = out
+    for mode, expected in [('error', 1), ('timeout', 1), ('cancellation', 130)]:
+        fixture.state, fixture.mode = 'stopped', mode
+        fixture.dispatched.clear()
+        command = ['start', '--incus', str(client), '--timeout', '5' if mode == 'timeout' else '10']
+        code, out, err = invoke(binary, command, env, True,
+                                fixture.dispatched if mode == 'cancellation' else None)
+        assert code == expected, (mode, code, out, err)
+        assert fixture.dispatched.is_set(), (mode, 'runtime start was never dispatched', out, err)
+        if mode == 'timeout':
+            assert 'Macus failed (timeout)' in out, out
+        report.setdefault('runtime_wait_cases', []).append({'mode': mode, 'dispatched': True, 'exit_status': code})
+        failure = out.index('Macus failed')
+        assert out.rindex('\x1b[?25h') < failure and '\x1b' not in out[failure:]
+        assert 'runtime status' in out and 'runtime stop' in out
+        report['transcripts']['pty start ' + mode] = out
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', required=True, type=Path)
@@ -167,6 +224,7 @@ def main():
         env.pop('TIM_STATE_DIR', None)
         fixture = RuntimeFixture(state)
         try:
+            host_supported = None
             for interactive in [False, True]:
                 for command in [['--help'], ['capabilities'], ['capabilities', '--json'], ['--json', 'capabilities'],
                                 ['runtime', 'status'], ['doctor'], ['doctor', '--json']]:
@@ -176,39 +234,15 @@ def main():
                     if '--json' in command:
                         obj = json.loads(out)
                         if 'capabilities' in command:
+                            assert type(obj['supported']) is bool
+                            host_supported = obj['supported']
                             assert set(obj) == {'platform', 'architecture', 'virtualization', 'supported', 'nested_virtualization', 'virtiofs'}
                     report['transcripts'][('pty ' if interactive else 'redirected ') + ' '.join(command)] = out + err
             assert all(method == 'GET' for method, _ in fixture.calls)
             assert not (state / 'bootstrap.lock').exists()
             for flag in [['--timeout', '1'], ['--remote', 'demo'], ['--force']]:
                 assert invoke(binary, ['capabilities', *flag], env)[0] == 2
-            for interactive in [False, True]:
-                fixture.state, fixture.mode = 'ready', 'success'
-                code, out, err = invoke(binary, ['start', '--incus', str(client)], env, interactive)
-                assert code == 0, (out, err)
-                summary = out.index('Macus is ready\r\n' if interactive else 'Macus is ready\n')
-                if interactive:
-                    restored = out.rindex('\x1b[?25h')
-                    # The stage confirmation precedes the separate stdout heading.
-                    heading = out.index('Macus is ready\r\n', summary + 1)
-                    assert restored < heading and '\x1b' not in out[heading:]
-                else:
-                    assert '\x1b' not in out + err and out.startswith('Macus is ready\n')
-                report['transcripts'][('pty ' if interactive else 'redirected ') + 'start'] = out + err
-            code, out, err = invoke(binary, ['start', '--incus', str(client), '--json', '--progress', 'none'], env)
-            assert code == 0 and json.loads(out)['ready'] and json.loads(out)['connected'] and not err
-            report['transcripts']['redirected start --json --progress none'] = out
-            for mode, expected in [('error', 1), ('timeout', 1), ('cancellation', 130)]:
-                fixture.state, fixture.mode = 'stopped', mode
-                fixture.dispatched.clear()
-                command = ['start', '--incus', str(client), '--timeout', '1' if mode == 'timeout' else '10']
-                code, out, err = invoke(binary, command, env, True,
-                                        fixture.dispatched if mode == 'cancellation' else None)
-                assert code == expected, (mode, code, out, err)
-                failure = out.index('Macus failed')
-                assert out.rindex('\x1b[?25h') < failure and '\x1b' not in out[failure:]
-                assert 'runtime status' in out and 'runtime stop' in out
-                report['transcripts']['pty start ' + mode] = out
+            verify_startup(binary, client, env, fixture, report, host_supported)
             assert (state / 'config.json').read_bytes() == config_before
             assert all((state / 'runtime' / name).read_text() == 'disk-sentinel' for name in ['root.raw', 'data.raw'])
             assert not (state / 'appliance-cache').exists()
@@ -238,7 +272,7 @@ def main():
         report = json.loads(json.dumps(report).replace(temporary, '/tmp/macus-presentation-fixture'))
     if args.output:
         args.output.write_text(json.dumps(report, indent=2) + '\n')
-    print(f"Presentation acceptance passed: {len(report['transcripts'])} signed CLI transcripts; no VM booted")
+    print(f"Presentation acceptance passed: {len(report['transcripts'])} signed CLI transcripts; {report['startup_fixture_mode']}; no VM booted")
 
 
 if __name__ == '__main__':

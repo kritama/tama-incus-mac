@@ -130,3 +130,9 @@ The checks preserve fixture disks/configuration, assert read-only requests for
 inspection, and never boot a VM. They are presentation evidence, separate from
 guest/hardware qualification. The canonical isolated-prefix install check reruns
 `Integration/scripts/presentation-acceptance.py --binary <signed-macus>`.
+On a CI host that reports Apple virtualization unavailable, the signed runner
+verifies startup's unsupported-host rejection and records that mode explicitly;
+it does not bypass production preflight or claim the startup success/timeout
+matrix ran there. Supported-host runs exercise that full matrix. Runtime-wait
+failure, timeout and interruption cases must observe an actual fixture start
+request; preflight failures cannot satisfy their assertions.

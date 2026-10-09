@@ -115,6 +115,11 @@ struct HumanPresentation {
     if let error = jsonString(object["last_error"]), !error.isEmpty { field("Last error", error) }
   }
   func host(_ object: [String: Any], title: String = "Host support") {
+    var object = object
+    let features = object["capabilities"] as? [String: Any]
+    for key in ["nested_virtualization", "virtiofs"] where object[key] == nil {
+      object[key] = features?[key]
+    }
     section(
       title,
       rows: [
@@ -144,8 +149,6 @@ struct HumanPresentation {
         ["System containers", support(jsonBool(object["system_containers"]))],
         ["OCI containers", support(jsonBool(object["oci"]))],
         ["Virtual machines", support(jsonBool(object["vm"]))],
-        ["Nested virtualization", support(jsonBool(object["nested_virtualization"]))],
-        ["File sharing", support(jsonBool(object["virtiofs"]))],
       ])
   }
   func doctor(
@@ -161,12 +164,7 @@ struct HumanPresentation {
     }
     runtimeFields(status, directory: directory)
     if let capabilities {
-      var hostObservations = capabilities
-      let features = capabilities["capabilities"] as? [String: Any]
-      for key in ["nested_virtualization", "virtiofs"] where hostObservations[key] == nil {
-        hostObservations[key] = features?[key]
-      }
-      host(hostObservations)
+      host(capabilities)
     } else {
       heading("\nHost support")
       field("Status", nil)

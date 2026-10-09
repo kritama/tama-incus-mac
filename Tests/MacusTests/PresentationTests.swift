@@ -288,3 +288,34 @@ import Testing
   #expect(!unavailable.output.contains("Unsupported"))
   #expect(unavailable.output.contains("Workload support\n  Status: Unavailable"))
 }
+
+@Test(arguments: [(false, true), (true, false), (true, true)])
+func hostNestingIsSeparateFromEffectiveWorkloadVM(kvm: Bool, nestingEnabled: Bool) throws {
+  let capabilities = RuntimeCapabilities(
+    host: HostCapabilities(supported: true, nestedVirtualization: true),
+    health: GuestHealth(incusVersion: "fixture", apiExtensions: [], kvm: kvm),
+    nestingEnabled: nestingEnabled)
+  let object = try jsonObject(JSON.encoder().encode(capabilities))
+  let capture = StartCapture()
+  HumanPresentation(streams: capture.streams, environment: [:]).doctor(
+    status: ["api_version": 1, "state": "ready"], capabilities: object,
+    health: ["protocol_version": 1, "kvm": kvm],
+    directory: URL(fileURLWithPath: "/tmp/fixture"), error: nil)
+  let host = try #require(
+    capture.output.components(separatedBy: "Host support").last?.components(
+      separatedBy: "Workload support"
+    ).first)
+  let hostNesting = try #require(host.split(separator: "\n").first { $0.contains("Host nesting") })
+  #expect(hostNesting.contains("Supported"))
+  let workload = try #require(
+    capture.output.components(separatedBy: "Workload support").last?.components(
+      separatedBy: "Guest health"
+    ).first)
+  #expect(!workload.contains("Nested virtualization"))
+  #expect(!workload.contains("Host nesting"))
+  #expect(!workload.contains("File sharing"))
+  let vm = try #require(workload.split(separator: "\n").first { $0.contains("Virtual machines") })
+  #expect(vm.contains(kvm && nestingEnabled ? "Supported" : "Unsupported"))
+  #expect(capabilities.capabilities.nestedVirtualization)
+  #expect(capabilities.capabilities.vm == (kvm && nestingEnabled))
+}
