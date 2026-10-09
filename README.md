@@ -2,7 +2,7 @@
 
 A headless macOS compatibility layer that boots a Linux Incus host using Apple's **Virtualization.framework directly**. Tama uses native Incus on Linux and this appliance on macOS; Incus remains the workload API and portable artifact layer.
 
-Requires Apple Silicon, macOS 15+ and Swift 6.4. One SwiftPM library (`Macus`) and one `macus` command for foreground serving and local runtime/client setup; no third-party Swift dependencies, separate client repository or host VM runtime.
+Requires Apple Silicon, macOS 15+ and Swift 6.4. SwiftPM builds one library (`Macus`) and one `macus` command for foreground serving and local runtime/client setup. Noora 0.57.5 provides CLI presentation; SwiftPM downloads its locked dependencies during source builds. No separate client repository or host VM runtime is required.
 
 **Development status:** Installation is currently from source. Local prebuilt Homebrew candidates are documented in [Homebrew packaging](Packaging/homebrew/README.md). There is no published Macus Homebrew formula. `macus start` downloads and verifies the pinned Alpine appliance; it does not upgrade an existing root image or install Homebrew. Hardware results and distribution limitations are recorded in [the acceptance record](docs/acceptance.md).
 
@@ -79,7 +79,7 @@ macus --help
 macus capabilities
 ```
 
-The installer builds and ad-hoc signs one release executable with the virtualization entitlement. `command -v` should point into the new test prefix, and capabilities should report `supported: true` and `virtualization: apple-vz`. Stop here if host virtualization is unsupported. `nested_virtualization: false` does not prevent container testing; nested Incus VMs need usable guest KVM and separate acceptance.
+The installer builds and ad-hoc signs one release executable with the virtualization entitlement. `command -v` should point into the new test prefix, and capabilities should report Apple virtualization as Supported and `Virtualization: apple-vz` (use `macus capabilities --json` for the existing machine schema). Stop here if host virtualization is unsupported. Unsupported host nesting does not prevent container testing; nested Incus VMs need usable guest KVM and separate acceptance.
 
 ### 3. Download, verify and prepare the Alpine appliance
 

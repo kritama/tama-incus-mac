@@ -12,6 +12,7 @@ struct StartupOverrides: Sendable {
   var launchAgentsDirectory: URL?
   var catalog: ApplianceCatalogEntry?
   var stderrIsTTY: Bool?
+  var terminalWidth: (@Sendable () -> Int?)?
   var term: String?
   var installSignals = true
   var uid: uid_t?
@@ -27,8 +28,16 @@ func runStart(
   let rendering = ProgressRenderer.resolve(
     selection: progress, stderrIsTTY: overrides.stderrIsTTY ?? (isatty(STDERR_FILENO) == 1),
     term: overrides.term ?? environment["TERM"], json: json)
-  let sink = TerminalProgressSink(rendering: rendering) { text in streams.writeError(text) }
-  defer { streams.writeError(sink.cleanup()) }
+  var progressEnvironment = environment
+  if json { progressEnvironment["NO_COLOR"] = "1" }
+  let terminal = MacusTerminal(
+    descriptor: STDERR_FILENO, isTTY: rendering == .animated,
+    environment: progressEnvironment, width: overrides.terminalWidth, write: streams.writeError)
+  let sink = TerminalProgressSink(
+    rendering: rendering, environment: progressEnvironment,
+    width: { terminal.size()?.columns }, write: streams.writeError)
+  sink.startRefreshing()
+  defer { sink.cleanup() }
   let home = overrides.homeDirectory ?? URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
   let dependencies = StartupDependencies(
     transport: transport,
@@ -54,15 +63,22 @@ func runStart(
   let task = Task { try await StartupCoordinator(dependencies: dependencies).run(request) }
   let signals = overrides.installSignals ? SignalCancellation(task: task) : nil
   defer { signals?.cancel() }
-  let result = try await withTaskCancellationHandler {
-    try await task.value
-  } onCancel: {
-    task.cancel()
+  let result: StartupResult
+  do {
+    result = try await withTaskCancellationHandler {
+      try await task.value
+    } onCancel: {
+      task.cancel()
+    }
+  } catch {
+    await sink.finish()
+    throw error
   }
+  await sink.finish(ready: result.ready, connected: result.connected)
   if json {
     streams.writeOutput(try jsonText(resultObject(result)))
   } else {
-    streams.writeOutput(humanResult(result))
+    HumanPresentation(streams: streams, environment: environment).startup(result)
   }
 }
 
@@ -86,28 +102,6 @@ private func resultObject(_ result: StartupResult) -> [String: Any] {
     object["capabilities"] = decoded
   }
   return object
-}
-
-private func humanResult(_ result: StartupResult) -> String {
-  var lines = [
-    "macus start ready",
-    "state: \(result.stateDirectory)",
-    "remote: \(result.remote)",
-    "incus: \(result.incus)",
-    "service: \(result.serviceOwnership)",
-  ]
-  if let label = result.serviceLabel { lines.append("service label: \(label)") }
-  if result.serviceOwnership == "foreground" {
-    lines.append("foreground ownership: closing that terminal still stops the daemon")
-  }
-  if let capabilities = result.capabilities {
-    lines.append("system containers: \(capabilities.capabilities.systemContainers)")
-    lines.append("vm: \(capabilities.capabilities.vm)")
-    lines.append("nested virtualization: \(capabilities.capabilities.nestedVirtualization)")
-  }
-  if let guidance = result.pathGuidance { lines.append(guidance) }
-  lines.append("next: \(result.nextCommands.joined(separator: " && "))")
-  return lines.joined(separator: "\n") + "\n"
 }
 
 func currentExecutablePath() -> String {
@@ -148,28 +142,6 @@ func currentProcessHasVirtualizationEntitlement() -> Bool {
     String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
     + String(decoding: error.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
   return text.contains("com.apple.security.virtualization")
-}
-
-private final class TerminalProgressSink: StartupProgressSink, @unchecked Sendable {
-  private let lock = NSLock()
-  private var renderer: ProgressRenderer
-  private let write: @Sendable (String) -> Void
-  init(rendering: ProgressRendering, write: @escaping @Sendable (String) -> Void) {
-    renderer = ProgressRenderer(rendering: rendering)
-    self.write = write
-  }
-  func emit(_ event: StartupProgressEvent) {
-    lock.lock()
-    let text = renderer.render(event, now: .now)
-    lock.unlock()
-    if let text { write(text) }
-  }
-  func cleanup() -> String {
-    lock.lock()
-    let text = renderer.cleanup()
-    lock.unlock()
-    return text
-  }
 }
 
 private final class SignalCancellation: @unchecked Sendable {

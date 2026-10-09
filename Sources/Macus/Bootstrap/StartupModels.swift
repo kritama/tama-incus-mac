@@ -35,6 +35,11 @@ struct StartupProgressEvent: Sendable, Equatable {
 
 protocol StartupProgressSink: Sendable {
   func emit(_ event: StartupProgressEvent)
+  func diagnostic(_ text: String)
+}
+
+extension StartupProgressSink {
+  func diagnostic(_ text: String) {}
 }
 
 final class CollectingProgressSink: StartupProgressSink, @unchecked Sendable {

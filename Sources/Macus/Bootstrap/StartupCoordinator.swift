@@ -286,8 +286,7 @@ private final class StartContext: @unchecked Sendable {
       streams: MacusStreams(
         writeOutput: { _ in },
         writeError: { text in
-          self.dependencies.sink.emit(
-            self.event(.clientSetup, .active, detail: String(text.prefix(160))))
+          self.dependencies.sink.diagnostic(text)
         }),
       environment: request.environment)
     do {
@@ -302,8 +301,11 @@ private final class StartContext: @unchecked Sendable {
         : "incus is not on PATH. Use \(result.executable) or add \(directory) to PATH. macus does not edit shell profiles."
       let command =
         result.onPath
-        ? "incus list \(request.remote):" : "\(result.executable) list \(request.remote):"
+        ? shellCommand(["incus", "list", request.remote + ":"])
+        : shellCommand([result.executable, "list", request.remote + ":"])
       return (result.executable, result.installed, [command], guidance)
+    } catch is CancellationError {
+      throw CancellationError()
     } catch {
       let runtime = error as? RuntimeError ?? RuntimeError(.io, error.localizedDescription)
       throw RuntimeError(

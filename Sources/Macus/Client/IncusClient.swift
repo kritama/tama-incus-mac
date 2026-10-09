@@ -72,8 +72,13 @@ struct IncusClientService: Sendable {
         timeout: timeout, deadline: deadline)
       if !install.stderr.isEmpty {
         let progress = String(decoding: install.stderr, as: UTF8.self)
-        streams.writeError(terminalSafe(String(progress.prefix(4_000))))
-        if !progress.hasSuffix("\n") { streams.writeError("\n") }
+        // Preserve deliberate line boundaries, escaping every untrusted line separately.
+        let bounded = String(progress.prefix(4_000))
+        streams.writeError("Homebrew installation details:\n")
+        for line in bounded.split(separator: "\n", omittingEmptySubsequences: false)
+        where !line.isEmpty {
+          streams.writeError("  " + terminalSafe(String(line)) + "\n")
+        }
       }
       guard install.status == 0 else {
         throw RuntimeError(.io, "Homebrew install of incus failed")
