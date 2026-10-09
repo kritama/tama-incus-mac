@@ -145,4 +145,9 @@ newline translation plus disabled `ONLCR`, with and without color. Screen checks
 verify intact native step prefixes/timings, explicit skipped-resource labels, a
 single success heading, no stale spinner and a visible cursor. The run used only
 isolated socket/client fixtures and preserved their disk/configuration sentinels;
-no VM was booted. Strict builds, 132 Swift tests and 70 Python tests passed.
+no VM was booted. Strict builds, 132 Swift tests and 71 Python tests passed.
+
+The startup screen checker requires all nine resolved rows exactly once, including
+the five skipped-resource labels and each native elapsed-time suffix. Negative
+regressions remove, duplicate, clip, mislabel or remove timing from every skipped
+row, ensuring a `9/9` footer alone cannot satisfy presentation acceptance.

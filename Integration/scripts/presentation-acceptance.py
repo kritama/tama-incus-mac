@@ -97,10 +97,20 @@ def check_finished_screen(text, columns=120):
 
 def check_native_startup_screen(text, columns=120):
     screen = check_finished_screen(text, columns)
-    for label in ['Host checked', 'Service activated', 'Incus is ready', 'Client connected']:
-        matching = [row for row in screen.rows if row.startswith('✔︎ ' + label)]
+    for label in [
+        'Host checked',
+        'Skipped download (using existing appliance)',
+        'Skipped verification (using existing appliance)',
+        'Skipped preparation (using existing appliance)',
+        'Skipped creation (using existing runtime)',
+        'Service activated',
+        'Skipped provisioning (Linux already ready)',
+        'Incus is ready',
+        'Client connected',
+    ]:
+        pattern = re.escape('✔︎ ' + label) + r' \[[0-9]+(?:\.[0-9]+)?s\]'
+        matching = [row for row in screen.rows if re.fullmatch(pattern, row)]
         assert len(matching) == 1, (label, screen.rows)
-        assert re.search(r' \[[0-9]+(?:\.[0-9]+)?s\]$', matching[0]), matching[0]
     assert sum(row == 'Macus is ready' for row in screen.rows) == 1, screen.rows
     assert 'Startup: 9/9 stages resolved' in screen.rows, screen.rows
     assert not any('[complete]' in row or '[skipped]' in row for row in screen.rows), screen.rows

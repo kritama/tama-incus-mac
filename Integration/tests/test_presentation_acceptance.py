@@ -80,6 +80,20 @@ class PresentationAcceptanceTests(unittest.TestCase):
             self.assertIn("pty start timeout", report["transcripts"])
 
 class TerminalScreenTests(unittest.TestCase):
+    skipped_labels = [
+        'Skipped download (using existing appliance)',
+        'Skipped verification (using existing appliance)',
+        'Skipped preparation (using existing appliance)',
+        'Skipped creation (using existing runtime)',
+        'Skipped provisioning (Linux already ready)',
+    ]
+
+    def successful_screen(self):
+        text = "\x1b[?25l\r\x1b[2K⠋ Checking host\r\x1b[2K"
+        for label in ['Host checked', *self.skipped_labels, 'Service activated', 'Incus is ready', 'Client connected']:
+            text += f"\x1b[32m✔︎ {label}\x1b[0m [0.1s]\n\r"
+        return text + "\x1b[?25hStartup: 9/9 stages resolved\n\rMacus is ready\n\r"
+
     def test_completed_step_does_not_implicitly_return_to_margin(self):
         broken = "\r\x1b[2K✔︎ Host checked [0.1s]\n⠋ Downloading\r\x1b[2K✔︎ Service activated [0.1s]\nMacus is ready\n"
         rows = acceptance.TerminalScreen().feed(broken).rows
@@ -88,10 +102,22 @@ class TerminalScreenTests(unittest.TestCase):
             acceptance.check_native_startup_screen(broken)
 
     def test_native_rows_and_summary_survive_color_and_explicit_column_returns(self):
-        text = "\x1b[?25l\r\x1b[2K⠋ Checking host\r\x1b[2K"
-        for label in ['Host checked', 'Service activated', 'Incus is ready', 'Client connected']:
-            text += f"\x1b[32m✔︎ {label}\x1b[0m [0.1s]\n\r"
-        text += "\x1b[?25hStartup: 9/9 stages resolved\n\rMacus is ready\n\r"
-        rows = acceptance.check_native_startup_screen(text)
+        rows = acceptance.check_native_startup_screen(self.successful_screen())
         self.assertEqual(rows[0], "✔︎ Host checked [0.1s]")
         self.assertEqual(rows[-1], "Macus is ready")
+
+    def test_every_skipped_row_must_be_intact_unique_and_timed(self):
+        for label in self.skipped_labels:
+            row = f"\x1b[32m✔︎ {label}\x1b[0m [0.1s]\n\r"
+            for defect, replacement in [
+                ('missing', ''),
+                ('duplicate', row + row),
+                ('clipped prefix', row.replace('✔︎ ', '︎ ', 1)),
+                ('wrong resource', row.replace(label, 'Appliance downloaded', 1)),
+                ('wrong detail', row.replace(label, label + ' extra', 1)),
+                ('missing time', row.replace(' [0.1s]', '', 1)),
+            ]:
+                with self.subTest(stage=label, defect=defect):
+                    broken = self.successful_screen().replace(row, replacement, 1)
+                    with self.assertRaises(AssertionError):
+                        acceptance.check_native_startup_screen(broken)

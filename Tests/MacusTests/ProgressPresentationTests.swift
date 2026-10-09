@@ -164,7 +164,10 @@ private func observation(
     write: capture.streams.writeError)
   sink.startRefreshing()
   sink.emit(observation(.acquisition, bytes: 134_217_728, total: 268_435_456))
-  try await Task.sleep(for: .milliseconds(350))
+  let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+  while !capture.error.contains("█"), ContinuousClock.now < deadline {
+    try await Task.sleep(for: .milliseconds(20))
+  }
   #expect(capture.error.contains("█"))
   #expect(capture.error.contains("50%"))
   #expect(capture.error.contains("128.0 MiB / 256.0 MiB"))
