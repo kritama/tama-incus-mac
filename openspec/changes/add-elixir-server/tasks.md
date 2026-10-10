@@ -116,6 +116,7 @@ This group depends on add-compute-substrate tool/task contracts, not completion 
 - [ ] 12.4 With hardware opt-in, restart only Elixir and prove retained VM/workload/task identity; verify shared journal recovery/native operation reconciliation and no mutation replay.
 - [ ] 12.5 With remote opt-in, use another client to prove TLS identity, native enrollment and scoped combined MCP/runtime access including revocation; record remote evidence separately from loopback and Linux acceptance.
 - [ ] 12.6 With package/hardware opt-in, exercise the same two-job upgrade/rollback/removal preserving workloads/credentials/tasks; retain failed diagnostics and leave unavailable hardware/remote tasks incomplete.
+- [ ] 12.7 With installed-package hardware opt-in and isolated state/projects, prove Linux/Incus boot, system-container and OCI-container boot plus fixture-defined readiness through the public gateway; prove nested VM boot/readiness on supported hosts or record an explicit unsupported reason/skip. Retain boot evidence separately from HTTP/MCP/capability checks and preserve workloads/diagnostics on failure.
 
 ## 13. Later optional central enrollment and connector integration
 

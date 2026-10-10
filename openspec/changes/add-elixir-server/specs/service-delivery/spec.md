@@ -85,12 +85,22 @@ New startup-managed registrations SHALL use the com.upmaru.macus namespace and b
 
 ### Requirement: Acceptance evidence
 
-Native and Elixir unit/protocol checks SHALL run without booting a VM. Package evidence SHALL verify both installed artifacts, bundled runtime and passive installation. Explicit isolated hardware acceptance SHALL separately prove public runtime control, native Incus HTTP/WebSockets, MCP mutations, service recovery, persistence and nested VM capability or unsupported skip. LAN/remote acceptance SHALL use an actual authenticated remote client and remain separate from loopback evidence.
+Native and Elixir unit/protocol checks SHALL run without booting a VM. Package evidence SHALL verify both installed artifacts, bundled runtime and passive installation. Explicit isolated hardware acceptance SHALL separately prove Linux/Incus boot, system-container and OCI-container boot, public runtime control, native Incus HTTP/WebSockets, MCP mutations, service recovery and restart persistence. Nested VM acceptance SHALL prove actual VM boot where supported or record an explicit unsupported skip. LAN/remote acceptance SHALL use an actual authenticated remote client and remain separate from loopback evidence.
 
 #### Scenario: No false completion
 
 - **WHEN** only unit tests have passed
 - **THEN** hardware acceptance tasks remain incomplete
+
+#### Scenario: Container and OCI workload boot
+
+- **WHEN** installed-package hardware acceptance runs against the isolated guest Incus backend
+- **THEN** system-container and OCI-container workloads boot and pass their fixture-defined readiness checks through the public gateway; API responses or capability reports alone cannot complete these checks
+
+#### Scenario: Nested VM boot or unsupported skip
+
+- **WHEN** installed-package hardware acceptance evaluates nested VM support
+- **THEN** a supported nested VM boots and passes its guest readiness check, or a genuinely unsupported platform records the reason and explicit skip without claiming successful VM boot
 
 ## ADDED Requirements
 
