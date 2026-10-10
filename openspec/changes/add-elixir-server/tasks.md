@@ -11,7 +11,7 @@ Planning revision only. Implementation continues only on a later apply request. 
 - [x] 1.5 Prove the Cowboy adapter choice using isolated TLS-to-Unix fixtures and the pinned official Incus client; verify native SFTP/NBD handshakes, coalesced bytes, binary duplex traffic, backend half-close, authorization before backend access, cleanup, Phoenix coexistence and response-header rejection without claiming production proxy or hardware acceptance.
 - [ ] 1.6 Pin a real implemented add-embedded-incus-foundation Opsmaru revision or released package and resolve compatible locked dependencies; verify a clean build without the sibling checkout, no fabricated package/version and recorded distinct Opsmaru provenance.
 - [ ] 1.7 Configure the foundational library embedded mode, explicit private backend/context and safe optional client workers before dependency startup; verify no Opsmaru endpoint/Repo/listener or third service starts even with PHX_SERVER/PORT present, client work waits for trusted host readiness and restart retains the Swift runtime marker without central/MCP/task prerequisites.
-- [ ] 1.8 Reconcile root context/development/architecture docs and source module ownership with this revision; verify they identify Macus gateway/runtime/proxy versus Opsmaru client/MCP/tasks and canonical checks retain the original hardware boundary.
+- [x] 1.8 Reconcile root context/development/architecture docs and source module ownership with this revision; verify they identify Macus gateway/runtime/proxy versus Opsmaru client/MCP/tasks and canonical checks retain the original hardware boundary.
 
 ## 2. Reference provenance and shared coverage verification
 
@@ -33,7 +33,7 @@ Planning revision only. Implementation continues only on a later apply request. 
 
 ## 4. Runtime adapter and public routing
 
-- [ ] 4.1 Implement the private runtime Unix HTTP client with existing request/response limits and timeout behavior; verify all lifecycle/config/status/health/progress methods against fake Swift endpoints.
+- [x] 4.1 Implement the private runtime Unix HTTP client with existing request/response limits and timeout behavior; verify all lifecycle/config/status/health/progress methods against fake Swift endpoints.
 - [ ] 4.2 Map the public `/runtime` methods to private `/v1/runtime` routes and project public status/endpoint metadata; verify DELETE root mapping, complete configuration validation, conflict codes, budget forwarding and omission of backend paths/secrets.
 - [ ] 4.3 Mount route-specific body handling and authenticated health/readiness responses with Opsmaru embedded; verify MCP/Incus bodies bypass blanket parsing and gateway availability remains distinct from guest/shared backend readiness.
 - [ ] 4.4 Document public/private APIs and Macus host provider capability/path prerequisites; verify fixture examples, no implicit share change/runtime restart and the stopped-VM configuration constraint remains visible.

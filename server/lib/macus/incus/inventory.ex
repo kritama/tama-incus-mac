@@ -1,0 +1,32 @@
+defmodule Macus.Incus.Inventory do
+  @moduledoc """
+  Reference declaration inventory. Changes are compared independently from
+  implementation evidence; generated declarations never constitute parity.
+  """
+
+  @spec diff(map(), map()) :: map()
+  def diff(before, after_inventory) do
+    old = by_id(before)
+    new = by_id(after_inventory)
+    old_ids = Map.keys(old) |> MapSet.new()
+    new_ids = Map.keys(new) |> MapSet.new()
+
+    %{
+      added: MapSet.difference(new_ids, old_ids) |> Enum.sort(),
+      removed: MapSet.difference(old_ids, new_ids) |> Enum.sort(),
+      changed:
+        MapSet.intersection(old_ids, new_ids)
+        |> Enum.filter(fn id ->
+          Map.take(old[id], ["signature", "build_constraints"]) !=
+            Map.take(new[id], ["signature", "build_constraints"])
+        end)
+        |> Enum.sort()
+    }
+  end
+
+  defp by_id(%{"entries" => entries}) do
+    result = Map.new(entries, &{Map.fetch!(&1, "id"), &1})
+    if map_size(result) != length(entries), do: raise(ArgumentError, "duplicate inventory ID")
+    result
+  end
+end
