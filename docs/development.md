@@ -1,6 +1,9 @@
 # Development and appliance preparation
 
-Requires Apple Silicon, macOS 15+, Xcode/Swift 6.4. `swift build`, `swift test`, release builds and `swift format` are the native development workflow; no Xcode project, SwiftLint, external web framework or VM runtime is required. Hardware acceptance is opt-in and separate from unit tests.
+Requires Apple Silicon, macOS 15+, Xcode/Swift 6.4 and the pinned Elixir/OTP
+toolchain for `server/`. SwiftPM and native `swift format` cover the VM service;
+Mix covers the headless Phoenix/Cowboy gateway. Hardware acceptance is opt-in
+and separate from unit tests.
 
 ## OpenSpec with mise
 
@@ -9,22 +12,28 @@ Install [mise](https://mise.jdx.dev/getting-started.html), then run these comman
 ```sh
 mise trust
 mise install node npm:@fission-ai/openspec
+mise install elixir erlang
 mise exec -- openspec --version
 mise run spec:validate
 ```
 
-`mise.toml` pins Node.js 26.10.0 and OpenSpec 1.14.0. OpenSpec is installed through mise's npm backend independently of any global npm installation. CI also pins OpenSpec 1.14.0.
+`mise.toml` pins Node.js 26.10.0, OpenSpec 1.14.0, Elixir 1.19.5 (OTP 27 build)
+and Erlang/OTP 27.3.4.16. OpenSpec is installed through mise's npm backend
+independently of any global npm installation. CI also pins OpenSpec 1.14.0.
+Go 1.25.14 is pinned solely for official Incus reference/inventory verification;
+it is not a Macus runtime component. Use `mise install go` for those checks.
 
 Use `mise exec -- openspec ...` for planning and implementation commands, including in agent sessions and shells without mise activation:
 
 ```sh
 mise exec -- openspec list
-mise exec -- openspec status --change rename-to-macus --json
-mise exec -- openspec instructions apply --change rename-to-macus --json
+mise exec -- openspec status --change add-elixir-server --json
+mise exec -- openspec instructions apply --change add-elixir-server --json
 mise exec -- openspec validate --all --strict --no-interactive
 ```
 
-The status and apply examples target the current `rename-to-macus` change; substitute the active change name for later work.
+The status and apply examples target `add-elixir-server`; substitute another
+active change name when needed.
 
 The canonical checks remain:
 
@@ -34,6 +43,80 @@ mise run spec:validate
 ```
 
 Swift and native swift-format come from the selected Xcode toolchain. Hardware acceptance remains explicit and opt-in, uses isolated state directories, and is recorded separately from these checks.
+
+## Headless Elixir server
+
+Run the server checks from its directory so Mix reads its independent project:
+
+```sh
+cd server
+mise exec -- mix deps.get
+mise exec -- mix format --check-formatted
+mise exec -- mix compile --warnings-as-errors
+mise exec -- mix test
+```
+
+`server/mix.lock` records released dependencies, including Phoenix 1.8.15,
+Plug.Cowboy 2.9.0, Cowboy 2.19.0, Mint 1.11.0 and TamaMCP 0.1.1. The current
+dependencies are released Hex packages. The revised plan requires a separate
+implemented immutable Opsmaru Git revision or released package; it is not in
+the lockfile yet. Production builds must never use an absolute sibling path
+or invent an unavailable package. Macus's own scaffold has no Ecto, HTML,
+assets, LiveView or generated nested AGENTS file. Embedded Opsmaru must start
+no Endpoint, Repo or listener. `_build/`, `deps/` and release outputs are
+ignored. Tests start the OTP tree in process without a listener or VM.
+
+The initial scaffold is passive: it resolves `MACUS_STATE_DIR`, then legacy
+`TIM_STATE_DIR`, then `~/.tama/incus-mac`, without creating that state. Generic
+`PHX_SERVER`/`PORT` variables do not enable a cleartext listener. HTTPS state,
+authorization, routes and coordinated startup are tracked in the active
+[change tasks](../openspec/changes/add-elixir-server/tasks.md). Until they are
+implemented, current installed Swift commands retain their Unix behavior.
+The canonical script currently checks Swift and packaging; the change also
+tracks adding the Mix/protocol/release checks to that script and CI.
+
+The [Cowboy transport trial](cowboy-transport-trial.md) exercises native
+SFTP/NBD HTTP upgrades with TLS/Unix fixtures and the pinned official client.
+Its handlers are test-only; passing that trial does not complete the proxy or
+hardware acceptance.
+
+Shared client adoption starts with Opsmaru's `add-embedded-incus-foundation`.
+It owns safe library startup, connection/context values, codecs and complete
+native Incus client coverage. Later shared MCP tools, cache/journal/runner and
+optional connector work belongs to Opsmaru's subsequent milestones. Macus
+owns its gateway authentication/native proxy, private Swift runtime adapter
+and runtime/host tool integration. Avoid a duplicate portable client, task
+engine, Opsmaru endpoint or third service. The checked historical inventory
+and Cowboy trial are reference/consumer evidence, not proof that the dependency
+is implemented or integrated. See the current tasks for the adoption gates.
+
+The private Swift adapter can be checked independently from that library:
+
+```sh
+mise exec -- mix test test/macus/runtime/client_test.exs
+```
+
+`Macus.Runtime.Client.new/2` takes trusted `Macus.Configuration` and the
+verified host UID. It resolves `runtime.sock` without creating state. Each
+request validates private ownership/modes and ancestors, uses one monotonic
+deadline, limits request JSON to 1 MiB and responses to 16 MiB/16 KiB headers,
+and closes its connection. An uncertain mutation is never replayed. The
+public gateway/host adapter will supply that trusted configuration; request
+inputs must not select another path or UID. Ordinary read-only startup remains
+passive while those public integration tasks are pending.
+
+The optional central `connect`, passive `connection status` and `disconnect`
+commands are later integration work. Normal installation/start must not enroll
+or require central login/connectivity. Their outbound workers will share the
+existing Elixir job and preserve local runtime/data on central outage.
+
+The combined delivery target is `<prefix>/bin/macus` plus a complete
+bundled-ERTS release at `<prefix>/libexec/macus`. Only source builders require
+Elixir/Erlang. Each component has its own foreground launchd job; restarting
+the gateway must preserve the VM. The integrated Homebrew candidate workflow
+is the packaging baseline, with real measured hashes and passive installation;
+see [candidate documentation](../Packaging/homebrew/README.md). Current
+installers still package Swift alone until the delivery tasks are complete.
 
 ## Build and sign
 
@@ -64,7 +147,10 @@ The unified executable receives the virtualization entitlement for serve mode. T
 
 ## Git Flow
 
-The long-lived branches are `main` for released history and `develop` for integration. The initial implementation lives on `feature/native-incus-runtime`; `main` and `develop` begin at the SwiftPM bootstrap commit. Publishing the feature branch does not finish the feature or mark hardware acceptance complete.
+The long-lived branches are `main` for released history and `develop` for
+integration. The server change uses `feature/elixir-server` from `develop`.
+Publishing a feature branch does not finish it or mark hardware acceptance
+complete.
 
 Create `feature/<name>` from `develop` and merge completed, validated features back into `develop`. Create `release/<version>` from `develop`; finish the validated release into both `main` and `develop` and tag it on `main`. Create urgent `hotfix/<name>` branches from `main` and finish them into both long-lived branches. Branch publication and finishing are separate actions; release readiness requires the acceptance evidence in OpenSpec.
 

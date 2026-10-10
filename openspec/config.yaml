@@ -1,7 +1,34 @@
 schema: spec-driven
 context: |
-  Native macOS-only Swift 6 service using Apple Virtualization.framework directly.
-  SwiftPM has one Macus library and one minimal macus executable for foreground serving and local client commands. Incus is the canonical workload API.
-  Host owns only outer VM lifecycle and local integration. No external VM runtime,
-  SSH, GUI, workload orchestration, or server-side Incus operation translation. macus controls the outer runtime and may configure the standard Incus CLI; all workload operations remain standard incus client operations. ARM64 and macOS 15+.
-  Actual guest acceptance must be recorded separately from unit test success.
+  Macus supports Apple Silicon and macOS 15+. Swift 6 and Apple
+  Virtualization.framework own the outer VM; VZ code stays in
+  Sources/Macus/Virtualization and the SwiftPM executable remains small.
+  A separate headless Phoenix/Cowboy OTP application :macus in server/ uses
+  Macus and MacusWeb namespaces. The approved add-elixir-server change makes
+  its authenticated HTTPS gateway the normal runtime, native Incus and MCP
+  connection boundary. Swift runtime.sock and incus.sock remain private
+  owner-only Unix transports with no TCP listeners. Preserve native Incus
+  routes, streaming and upgrade protocols; gateway trust is distinct from
+  guest trust. Typed clients and named MCP tools delegate workload behavior
+  to Incus. No external host VM runtime, SSH, GUI or workload orchestration.
+  First adopt add-embedded-incus-foundation for safe library embedding and
+  the native Incus client. Shared tools/tasks and optional central connectivity
+  follow later Opsmaru milestones and cannot gate initial local client integration.
+  Central Opsmaru manages multiple registered Incus/Macus targets; Macus
+  remains one local target and independently usable. Explicit macus connect
+  [url] enrolls a private device identity and enables an outbound connector
+  inside the existing Elixir service, without a third job/listener/database.
+  Central OIDC users, connector devices and native Incus trust stay separate.
+  Disconnect disables remote dispatch while preserving local runtime/data.
+  Use maintained TamaMCP contracts, explicit scopes, bounded streams and
+  durable task adapters; do not claim unsupported protocol features or parity.
+  Pin toolchains in mise and dependencies in SwiftPM/Mix lockfiles. Deliver
+  the Swift executable and bundled-ERTS Mix release as one matching package,
+  with independent per-user launchd jobs. Installation is passive; explicit
+  macus start owns activation. Preserve runtime, credential and task state.
+  Existing Homebrew candidate generation and real measured-checksum evidence
+  remain the delivery baseline. No fake hashes or publication claims.
+  Use Git Flow feature branches from develop. Validate planning before code.
+  Canonical checks are Integration/scripts/check.sh and strict OpenSpec
+  validation via mise. Unit/protocol and package tests do not establish guest
+  or LAN acceptance; hardware gates require explicit opt-in and isolated state.
